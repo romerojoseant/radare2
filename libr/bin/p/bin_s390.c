@@ -148,6 +148,8 @@ static RList *sections(RBinFile *bf) {
 	int left;
 	ut16 x = 0;
 	bool endw = false;
+	int rec = 0;
+	int sym = 0;
 
 	ut8 gbuf[1] = {0};
 	left = r_buf_read_at (bf->buf, 0, gbuf, sizeof (gbuf));
@@ -164,10 +166,13 @@ static RList *sections(RBinFile *bf) {
 				}
 
 				lon = r_read_be16(&hdr20.Count);
-				eprintf("Register 0x%02x - Count: 0x%04x - 0x%04x - %04ld\n", 
-								gbuf[0], x, lon, lon / sizeof(S390_Header_CESD_DATA));
+				rec++;
+				eprintf("Record %02d Type 0x%02x - Count: 0x%04x - (%03d) 0x%04x - %04ld\n", 
+								rec, gbuf[0], x, lon, lon, lon / sizeof(S390_Header_CESD_DATA));
 				x += sizeof(S390_Header_CESD);
 
+				// process each symbols with their datas
+				sym = 0;
 				for (ut16 y = 0 ; y < lon / sizeof(S390_Header_CESD_DATA) ; y++) {
 					left = r_buf_read_at (bf->buf, x, (ut8*)&hdrd, sizeof (S390_Header_CESD_DATA));
 					if (left < sizeof (S390_Header_CESD_DATA)) {
@@ -180,7 +185,9 @@ static RList *sections(RBinFile *bf) {
 					ut32 b;
 					a = (hdrd.Address[0] * 65536) + (hdrd.Address[1] * 256) + (hdrd.Address[2]);
 					b = (hdrd.ID_or_Length[0] * 65536) + (hdrd.ID_or_Length[1] * 256) + (hdrd.ID_or_Length[2]);
-					eprintf ("    - Symbol: %s - 0x%04x - 0x%04x\n", r_str_ndup ((char *) cad, 8), a, b); 
+					sym++;
+					eprintf ("       %02d   %s   0x%02x   0x%04x   (%5u) 0x%04x\n", 
+								sym, r_str_ndup ((char *) cad, 8), hdrd.Type, a, b, b); 
 
 					x += sizeof(S390_Header_CESD_DATA);
 				}
@@ -196,7 +203,9 @@ static RList *sections(RBinFile *bf) {
 				if (left < sizeof (S390_Header_CSECT)) {
 					return NULL;
 				}
-				eprintf("Register 0x%02x - Count: 0x%04x - 0x%02x\n", gbuf[0], x, hdr80.Count);
+				rec++;
+				eprintf("Record %02d Type 0x%02x - Count: 0x%04x - 0x%02x\n", 
+								rec, gbuf[0], x, hdr80.Count);
 				x += sizeof(S390_Header_CSECT);
 
 				// To Do something with IDR data
@@ -222,8 +231,9 @@ static RList *sections(RBinFile *bf) {
 					return NULL;
 				}
 				lon = r_read_be16(&hdr01.Count);
-				eprintf("Register 0x%02x - Count: 0x%04x - 0x%04x - %04ld\n", 
-								gbuf[0], x, lon, lon / sizeof(S390_Header_ControlRecord_Data));
+				rec++;
+				eprintf("Record %02d Type 0x%02x - Count: 0x%04x - 0x%04x - %04ld\n", 
+								rec, gbuf[0], x, lon, lon / sizeof(S390_Header_ControlRecord_Data));
 				x += sizeof(S390_Header_ControlRecord);
 
 				for (ut16 y = 0 ; y < lon / sizeof(S390_Header_ControlRecord_Data) ; y++) {
