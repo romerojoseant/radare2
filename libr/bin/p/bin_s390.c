@@ -3,6 +3,7 @@
 #include <r_bin.h>
 #include <magic/ascmagic.c>
 
+// CESD Record
 typedef struct s390_hdr_cesd {
 	ut8 Identification;	// 0x20
 	ut8 Flag;
@@ -11,6 +12,7 @@ typedef struct s390_hdr_cesd {
 	ut16 Count;
 } S390_Header_CESD;
 
+// CESD Data
 typedef struct s390_hdr_cesd_data {
 	ut8 Symbol[8];
 	ut8 Type;
@@ -19,24 +21,51 @@ typedef struct s390_hdr_cesd_data {
 	ut8 ID_or_Length[3];
 } S390_Header_CESD_DATA;
 
-typedef struct s390_hdr_csect {
+// CSET Identificacion Record (IDR)
+typedef struct s390_hdr_csect_idr {
 	ut8 Identification;	// 0x80
 	ut8 Count;
 	ut8 SubType;
-} S390_Header_CSECT;
+} S390_Header_CSECT_IDR;
 
+// Control Record
 typedef struct s390_hdr_contrec {
-	ut8 Identificacion; // 0x01, 0x05 & 0x0d
+	ut8 Identificacion; // 0x01, 0x05 (EOS) & 0x0d (EOM)
 	ut8 Zeros1[3];
 	ut16 Count;
 	ut16 Zeros2;
 	ut8	CCW[8];
 } S390_Header_ControlRecord;
 
+// Control Data (for Control Record)
 typedef struct s390_hdr_contrec_data {
 	ut16 EntryNumber;
 	ut16 Length;
 } S390_Header_ControlRecord_Data;
+
+// Relocation Directory Record (RLD)
+typedef struct s390_hdr_rld {
+	ut8 Identificacion; // 0x02, 0x06 (EOS) & 0x0e (EOM)
+	ut8 Zeros[3];
+	ut16 Count1;
+	ut16 Count2;
+	ut64 Reserved;
+} S390_Header_RLD;
+
+// RLD Data
+typedef struct s390_hdr_rld_data {
+	ut16 RelPointer;
+	ut16 PosPointer;
+} S390_Header_RLD_Data;
+
+// Control & Relocation Directory Record (RLD)
+typedef struct s390_hdr_contrld {
+	ut8 Identificacion; // 0x03, 0x07 (EOS) & 0x0f (EOM)
+	ut8 Zeros[3];
+	ut16 Count1;
+	ut16 Count2;
+	ut8	CCW[8];
+} S390_Header_ControlRLD;
 
 static ut64 baddr(RBinFile *bf) {
 	return 0;
@@ -139,17 +168,19 @@ static RList *sections(RBinFile *bf) {
 	}
 
 	S390_Header_CESD hdr20 = {0};
-	S390_Header_CESD_DATA hdrd = {0};
-	S390_Header_CSECT hdr80 = {0};
-	S390_Header_ControlRecord hdr01 = {0};
-	S390_Header_ControlRecord_Data hdrcd = {0};
+	S390_Header_CESD_DATA hdr20d = {0};
+	S390_Header_CSECT_IDR hdr80 = {0};
+	S390_Header_ControlRecord hdrCR = {0};
+	S390_Header_ControlRecord_Data hdrCRd = {0};
 
 	ut16 lon;
+	ut16 lonCR;
 	int left;
 	ut16 x = 0;
 	bool endw = false;
 	int rec = 0;
 	int sym = 0;
+//	ut8 gidr[255] = {0};
 
 	ut8 gbuf[1] = {0};
 	left = r_buf_read_at (bf->buf, 0, gbuf, sizeof (gbuf));
@@ -159,6 +190,7 @@ static RList *sections(RBinFile *bf) {
 
 	while (!endw) {
 		switch (gbuf[0]) {
+			// CESD Record
 			case 0x20:
 				left = r_buf_read_at (bf->buf, x, (ut8*)&hdr20, sizeof (S390_Header_CESD));
 				if (left < sizeof (S390_Header_CESD)) {
@@ -167,27 +199,27 @@ static RList *sections(RBinFile *bf) {
 
 				lon = r_read_be16(&hdr20.Count);
 				rec++;
-				eprintf("Record %02d Type 0x%02x - Count: 0x%04x - (%03d) 0x%04x - %04ld\n", 
+				eprintf("Record %02d Type 0x%02x - Count: 0x%04x - (%03d) 0x%04x - %02ld\n", 
 								rec, gbuf[0], x, lon, lon, lon / sizeof(S390_Header_CESD_DATA));
 				x += sizeof(S390_Header_CESD);
 
 				// process each symbols with their datas
 				sym = 0;
 				for (ut16 y = 0 ; y < lon / sizeof(S390_Header_CESD_DATA) ; y++) {
-					left = r_buf_read_at (bf->buf, x, (ut8*)&hdrd, sizeof (S390_Header_CESD_DATA));
+					left = r_buf_read_at (bf->buf, x, (ut8*)&hdr20d, sizeof (S390_Header_CESD_DATA));
 					if (left < sizeof (S390_Header_CESD_DATA)) {
 						return NULL;
 					}
 
 					ut8 cad[8];
-					from_ebcdic(hdrd.Symbol, sizeof(hdrd.Symbol), cad);
+					from_ebcdic(hdr20d.Symbol, sizeof(hdr20d.Symbol), cad);
 					ut32 a;
 					ut32 b;
-					a = (hdrd.Address[0] * 65536) + (hdrd.Address[1] * 256) + (hdrd.Address[2]);
-					b = (hdrd.ID_or_Length[0] * 65536) + (hdrd.ID_or_Length[1] * 256) + (hdrd.ID_or_Length[2]);
+					a = (hdr20d.Address[0] * 65536) + (hdr20d.Address[1] * 256) + (hdr20d.Address[2]);
+					b = (hdr20d.ID_or_Length[0] * 65536) + (hdr20d.ID_or_Length[1] * 256) + (hdr20d.ID_or_Length[2]);
 					sym++;
 					eprintf ("       %02d   %s   0x%02x   0x%04x   (%5u) 0x%04x\n", 
-								sym, r_str_ndup ((char *) cad, 8), hdrd.Type, a, b, b); 
+								sym, r_str_ndup ((char *) cad, 8), hdr20d.Type, a, b, b); 
 
 					x += sizeof(S390_Header_CESD_DATA);
 				}
@@ -198,22 +230,24 @@ static RList *sections(RBinFile *bf) {
 				}
 				break;
 			
+			// CSECT IDR
 			case 0x80:
-				left = r_buf_read_at (bf->buf, x, (ut8*)&hdr80, sizeof(S390_Header_CSECT));
-				if (left < sizeof (S390_Header_CSECT)) {
+				left = r_buf_read_at (bf->buf, x, (ut8*)&hdr80, sizeof(S390_Header_CSECT_IDR));
+				if (left < sizeof (S390_Header_CSECT_IDR)) {
 					return NULL;
 				}
+				lon = hdr80.Count - 2;	// Count include Count & SubType fields
 				rec++;
-				eprintf("Record %02d Type 0x%02x - Count: 0x%04x - 0x%02x\n", 
-								rec, gbuf[0], x, hdr80.Count);
-				x += sizeof(S390_Header_CSECT);
+				eprintf("Record %02d Type 0x%02x SubType 0x%02x - Count: 0x%04x (%03d) - 0x%02x\n", 
+								rec, gbuf[0], hdr80.SubType, x, lon, lon);
+				x += sizeof(S390_Header_CSECT_IDR);
 
 				// To Do something with IDR data
-				x += hdr80.Count - 2;
+				x += lon;
 
 //				Last IDR data has as SubType 1--- ----
 //				if (hdr80.SubType & 0x080) {
-//					eprintf("End of CSECT\n");
+//					eprintf("End of CSET_IDR\n");
 //					endw = true;
 //				}
 
@@ -223,36 +257,56 @@ static RList *sections(RBinFile *bf) {
 				}
 				break;
 			
+			// Control Record             0x0001
 			case 0x01:
+			// RLD                        0x0010
+			case 0x02:
+			// Control Record & RLD       0x0011
+			case 0x03:
+			// Control Record (EOS)       0x0101
 			case 0x05:
+			// RLD (EOS)                  0x0110
+			case 0x06:
+			// Control Record & RLD (EOS) 0x0111
+			case 0x07:
+			// Control Record (EOM)       0x1101
 			case 0x0d:
-				left = r_buf_read_at (bf->buf, x, (ut8*)&hdr01, sizeof(S390_Header_ControlRecord));
+			// RLD (EOM)                  0x1110
+			case 0x0e:
+			// Control Record & RLD (EOS) 0x1111
+			case 0x0f:
+				left = r_buf_read_at (bf->buf, x, (ut8*)&hdrCR, sizeof(S390_Header_ControlRecord));
 				if (left < sizeof (S390_Header_ControlRecord)) {
 					return NULL;
 				}
-				lon = r_read_be16(&hdr01.Count);
+				lon = r_read_be16(&hdrCR.Count);
 				rec++;
 				eprintf("Record %02d Type 0x%02x - Count: 0x%04x - 0x%04x - %04ld\n", 
 								rec, gbuf[0], x, lon, lon / sizeof(S390_Header_ControlRecord_Data));
 				x += sizeof(S390_Header_ControlRecord);
 
+				lonCR = 0;
 				for (ut16 y = 0 ; y < lon / sizeof(S390_Header_ControlRecord_Data) ; y++) {
-					left = r_buf_read_at (bf->buf, x, (ut8*)&hdrcd, sizeof (S390_Header_ControlRecord_Data));
+					left = r_buf_read_at (bf->buf, x, (ut8*)&hdrCRd, sizeof (S390_Header_ControlRecord_Data));
 					if (left < sizeof (S390_Header_ControlRecord_Data)) {
 						return NULL;
 					}
 
-					eprintf ("    - ContRec: 0x%04x - 0x%04x\n", 
-								r_read_be16(&hdrcd.EntryNumber), r_read_be16(&hdrcd.Length)); 
+					eprintf ("    CESD 0x%02x - 0x%04x\n", 
+								r_read_be16(&hdrCRd.EntryNumber), r_read_be16(&hdrCRd.Length)); 
+					lonCR += r_read_be16(&hdrCRd.Length);
 					x += sizeof(S390_Header_ControlRecord_Data);
 				}
+
+				// To Do something with IDR data
+				eprintf ("Long: 0x%04x\n", lonCR);
+				x += lonCR;
 
 				left = r_buf_read_at (bf->buf, x, gbuf, sizeof (gbuf));
 				if (left < sizeof (gbuf)) {
 					return NULL;
 				}
-				eprintf("End - Count: 0x%02x - 0x%04x\n", x, gbuf[0]);
-				endw = true;
+				eprintf ("Record %02d Type 0x%02x\n", rec, gbuf[0]);
 				break;
 		}
 	}
