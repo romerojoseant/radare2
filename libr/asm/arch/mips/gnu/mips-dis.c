@@ -1,5 +1,5 @@
 /*
-  Based on commits 250d07de5cf6efc81ed934c25292beb63c7e3129 from master branch 
+  Based on commits 250d07de5cf6efc81ed934c25292beb63c7e3129 from master branch
   of binutils-gdb.
 */
 /* Default disassembler options are modified to match radare2 config.  */
@@ -59,7 +59,7 @@ struct mips_cp0sel_name
   const char * const name;
 };
 
-static const char * const mips_gpr_names_numeric[32] =
+static const char *const mips_gpr_names_numeric[32] =
 {
   "$0",   "$1",   "$2",   "$3",   "$4",   "$5",   "$6",   "$7",
   "$8",   "$9",   "$10",  "$11",  "$12",  "$13",  "$14",  "$15",
@@ -67,7 +67,7 @@ static const char * const mips_gpr_names_numeric[32] =
   "$24",  "$25",  "$26",  "$27",  "$28",  "$29",  "$30",  "$31"
 };
 
-static const char * const mips_gpr_names_oldabi[32] =
+static const char *const mips_gpr_names_oldabi[32] =
 {
   "zero", "at",   "v0",   "v1",   "a0",   "a1",   "a2",   "a3",
   "t0",   "t1",   "t2",   "t3",   "t4",   "t5",   "t6",   "t7",
@@ -75,7 +75,7 @@ static const char * const mips_gpr_names_oldabi[32] =
   "t8",   "t9",   "k0",   "k1",   "gp",   "sp",   "s8",   "ra"
 };
 
-static const char * const mips_gpr_names_newabi[32] =
+static const char *const mips_gpr_names_newabi[32] =
 {
   "zero", "at",   "v0",   "v1",   "a0",   "a1",   "a2",   "a3",
   "a4",   "a5",   "a6",   "a7",   "t0",   "t1",   "t2",   "t3",
@@ -83,7 +83,7 @@ static const char * const mips_gpr_names_newabi[32] =
   "t8",   "t9",   "k0",   "k1",   "gp",   "sp",   "s8",   "ra"
 };
 
-static const char * const mips_fpr_names_numeric[32] =
+static const char *const mips_fpr_names_numeric[32] =
 {
   "$f0",  "$f1",  "$f2",  "$f3",  "$f4",  "$f5",  "$f6",  "$f7",
   "$f8",  "$f9",  "$f10", "$f11", "$f12", "$f13", "$f14", "$f15",
@@ -91,7 +91,7 @@ static const char * const mips_fpr_names_numeric[32] =
   "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31"
 };
 
-static const char * const mips_fpr_names_32[32] =
+static const char *const mips_fpr_names_32[32] =
 {
   "fv0",  "fv0f", "fv1",  "fv1f", "ft0",  "ft0f", "ft1",  "ft1f",
   "ft2",  "ft2f", "ft3",  "ft3f", "fa0",  "fa0f", "fa1",  "fa1f",
@@ -99,7 +99,7 @@ static const char * const mips_fpr_names_32[32] =
   "fs2",  "fs2f", "fs3",  "fs3f", "fs4",  "fs4f", "fs5",  "fs5f"
 };
 
-static const char * const mips_fpr_names_n32[32] =
+static const char *const mips_fpr_names_n32[32] =
 {
   "fv0",  "ft14", "fv1",  "ft15", "ft0",  "ft1",  "ft2",  "ft3",
   "ft4",  "ft5",  "ft6",  "ft7",  "fa0",  "fa1",  "fa2",  "fa3",
@@ -107,7 +107,7 @@ static const char * const mips_fpr_names_n32[32] =
   "fs2",  "ft10", "fs3",  "ft11", "fs4",  "ft12", "fs5",  "ft13"
 };
 
-static const char * const mips_fpr_names_64[32] =
+static const char *const mips_fpr_names_64[32] =
 {
   "fv0",  "ft12", "fv1",  "ft13", "ft0",  "ft1",  "ft2",  "ft3",
   "ft4",  "ft5",  "ft6",  "ft7",  "fa0",  "fa1",  "fa2",  "fa3",
@@ -115,7 +115,7 @@ static const char * const mips_fpr_names_64[32] =
   "fs0",  "fs1",  "fs2",  "fs3",  "fs4",  "fs5",  "fs6",  "fs7"
 };
 
-static const char * const mips_cp0_names_numeric[32] =
+static const char *const mips_cp0_names_numeric[32] =
 {
   "$0",   "$1",   "$2",   "$3",   "$4",   "$5",   "$6",   "$7",
   "$8",   "$9",   "$10",  "$11",  "$12",  "$13",  "$14",  "$15",
@@ -123,7 +123,7 @@ static const char * const mips_cp0_names_numeric[32] =
   "$24",  "$25",  "$26",  "$27",  "$28",  "$29",  "$30",  "$31"
 };
 
-static const char * const mips_cp1_names_numeric[32] =
+static const char *const mips_cp1_names_numeric[32] =
 {
   "$0",   "$1",   "$2",   "$3",   "$4",   "$5",   "$6",   "$7",
   "$8",   "$9",   "$10",  "$11",  "$12",  "$13",  "$14",  "$15",
@@ -131,7 +131,7 @@ static const char * const mips_cp1_names_numeric[32] =
   "$24",  "$25",  "$26",  "$27",  "$28",  "$29",  "$30",  "$31"
 };
 
-static const char * const mips_cp0_names_r3000[32] =
+static const char *const mips_cp0_names_r3000[32] =
 {
   "c0_index",     "c0_random",    "c0_entrylo",   "$3",
   "c0_context",   "$5",           "$6",           "$7",
@@ -143,7 +143,7 @@ static const char * const mips_cp0_names_r3000[32] =
   "$28",          "$29",          "$30",          "$31",
 };
 
-static const char * const mips_cp0_names_r4000[32] =
+static const char *const mips_cp0_names_r4000[32] =
 {
   "c0_index",     "c0_random",    "c0_entrylo0",  "c0_entrylo1",
   "c0_context",   "c0_pagemask",  "c0_wired",     "$7",
@@ -155,7 +155,7 @@ static const char * const mips_cp0_names_r4000[32] =
   "c0_taglo",     "c0_taghi",     "c0_errorepc",  "$31",
 };
 
-static const char * const mips_cp0_names_r5900[32] =
+static const char *const mips_cp0_names_r5900[32] =
 {
   "c0_index",     "c0_random",    "c0_entrylo0",  "c0_entrylo1",
   "c0_context",   "c0_pagemask",  "c0_wired",     "$7",
@@ -167,7 +167,7 @@ static const char * const mips_cp0_names_r5900[32] =
   "c0_taglo",     "c0_taghi",     "c0_errorepc",  "$31"
 };
 
-static const char * const mips_cp0_names_mips3264[32] =
+static const char *const mips_cp0_names_mips3264[32] =
 {
   "c0_index",     "c0_random",    "c0_entrylo0",  "c0_entrylo1",
   "c0_context",   "c0_pagemask",  "c0_wired",     "$7",
@@ -179,7 +179,7 @@ static const char * const mips_cp0_names_mips3264[32] =
   "c0_taglo",     "c0_taghi",     "c0_errorepc",  "c0_desave",
 };
 
-static const char * const mips_cp1_names_mips3264[32] =
+static const char *const mips_cp1_names_mips3264[32] =
 {
   "c1_fir",       "c1_ufr",       "$2",           "$3",
   "c1_unfr",      "$5",           "$6",           "$7",
@@ -224,7 +224,7 @@ static const struct mips_cp0sel_name mips_cp0sel_names_mips3264[] =
   { 29, 1, "c0_datahi"		}
 };
 
-static const char * const mips_cp0_names_mips3264r2[32] =
+static const char *const mips_cp0_names_mips3264r2[32] =
 {
   "c0_index",     "c0_random",    "c0_entrylo0",  "c0_entrylo1",
   "c0_context",   "c0_pagemask",  "c0_wired",     "c0_hwrena",
@@ -313,7 +313,7 @@ static const struct mips_cp0sel_name mips_cp0sel_names_mips3264r2[] =
 };
 
 /* SB-1: MIPS64 (mips_cp0_names_mips3264) with minor mods.  */
-static const char * const mips_cp0_names_sb1[32] =
+static const char *const mips_cp0_names_sb1[32] =
 {
   "c0_index",     "c0_random",    "c0_entrylo0",  "c0_entrylo1",
   "c0_context",   "c0_pagemask",  "c0_wired",     "$7",
@@ -351,7 +351,7 @@ static const struct mips_cp0sel_name mips_cp0sel_names_sb1[] =
 };
 
 /* Xlr cop0 register names.  */
-static const char * const mips_cp0_names_xlr[32] = {
+static const char *const mips_cp0_names_xlr[32] = {
   "c0_index",     "c0_random",    "c0_entrylo0",  "c0_entrylo1",
   "c0_context",   "c0_pagemask",  "c0_wired",     "$7",
   "c0_badvaddr",  "c0_count",     "c0_entryhi",   "c0_compare",
@@ -400,7 +400,7 @@ static const struct mips_cp0sel_name mips_cp0sel_names_xlr[] = {
   { 29, 1, "c0_datahi"          }
 };
 
-static const char * const mips_hwr_names_numeric[32] =
+static const char *const mips_hwr_names_numeric[32] =
 {
   "$0",   "$1",   "$2",   "$3",   "$4",   "$5",   "$6",   "$7",
   "$8",   "$9",   "$10",  "$11",  "$12",  "$13",  "$14",  "$15",
@@ -408,7 +408,7 @@ static const char * const mips_hwr_names_numeric[32] =
   "$24",  "$25",  "$26",  "$27",  "$28",  "$29",  "$30",  "$31"
 };
 
-static const char * const mips_hwr_names_mips3264r2[32] =
+static const char *const mips_hwr_names_mips3264r2[32] =
 {
   "hwr_cpunum",   "hwr_synci_step", "hwr_cc",     "hwr_ccres",
   "$4",          "$5",            "$6",           "$7",
@@ -417,7 +417,7 @@ static const char * const mips_hwr_names_mips3264r2[32] =
   "$24",  "$25",  "$26",  "$27",  "$28",  "$29",  "$30",  "$31"
 };
 
-static const char * const msa_control_names[32] =
+static const char *const msa_control_names[32] =
 {
   "msa_ir",	"msa_csr",	"msa_access",	"msa_save",
   "msa_modify",	"msa_request",	"msa_map",	"msa_unmap",
@@ -709,13 +709,13 @@ static int mips_processor;
 static int mips_isa;
 static int mips_ase;
 static int micromips_ase;
-static const char * const *mips_gpr_names;
-static const char * const *mips_fpr_names;
-static const char * const *mips_cp0_names;
+static const char *const *mips_gpr_names;
+static const char *const *mips_fpr_names;
+static const char *const *mips_cp0_names;
 static const struct mips_cp0sel_name *mips_cp0sel_names;
 static int mips_cp0sel_names_len;
-static const char * const *mips_cp1_names;
-static const char * const *mips_hwr_names;
+static const char *const *mips_cp1_names;
+static const char *const *mips_hwr_names;
 
 /* Other options */
 static int no_aliases;	/* If set disassemble as most general inst.  */
@@ -760,7 +760,7 @@ choose_arch_by_number (unsigned long mach)
   /* We optimize this because even if the user specifies no
      flags, this will be done for every instruction!  */
   if (hint_bfd_mach == mach
-      && hint_arch_choice != NULL
+      && hint_arch_choice
       && hint_arch_choice->bfd_mach == hint_bfd_mach)
     return hint_arch_choice;
 
@@ -890,7 +890,7 @@ set_default_mips_dis_options (struct disassemble_info *info)
   mips_ase = mips_target_info.ase;
 #else
   chosen_arch = choose_arch_by_number (info->mach);
-  if (chosen_arch != NULL)
+  if (chosen_arch)
     {
       mips_processor = chosen_arch->processor;
       mips_isa = chosen_arch->isa;
@@ -903,7 +903,7 @@ set_default_mips_dis_options (struct disassemble_info *info)
     }
 
   /* Update settings according to the ELF file header flags.  */
-  if (info->flavour == bfd_target_elf_flavour && info->section != NULL)
+  if (info->flavour == bfd_target_elf_flavour && info->section)
     {
       struct bfd *abfd = info->section->owner;
       Elf_Internal_Ehdr *header = elf_elfheader (abfd);
@@ -983,7 +983,7 @@ parse_mips_ase_option (const char *option)
       mips_ase |= ASE_LOONGSON_CAM;
       return TRUE;
     }
-  
+
   /* Put here for match ext2 frist */
   if (CONST_STRNEQ (option, "loongson-ext2"))
     {
@@ -1051,7 +1051,7 @@ parse_mips_dis_option (const char *option, unsigned int len)
       && strlen ("gpr-names") == optionlen)
     {
       chosen_abi = choose_abi_by_name (val, vallen);
-      if (chosen_abi != NULL)
+      if (chosen_abi)
 	mips_gpr_names = chosen_abi->gpr_names;
       return;
     }
@@ -1060,7 +1060,7 @@ parse_mips_dis_option (const char *option, unsigned int len)
       && strlen ("fpr-names") == optionlen)
     {
       chosen_abi = choose_abi_by_name (val, vallen);
-      if (chosen_abi != NULL)
+      if (chosen_abi)
 	mips_fpr_names = chosen_abi->fpr_names;
       return;
     }
@@ -1069,7 +1069,7 @@ parse_mips_dis_option (const char *option, unsigned int len)
       && strlen ("cp0-names") == optionlen)
     {
       chosen_arch = choose_arch_by_name (val, vallen);
-      if (chosen_arch != NULL)
+      if (chosen_arch)
 	{
 	  mips_cp0_names = chosen_arch->cp0_names;
 	  mips_cp0sel_names = chosen_arch->cp0sel_names;
@@ -1082,7 +1082,7 @@ parse_mips_dis_option (const char *option, unsigned int len)
       && strlen ("cp1-names") == optionlen)
     {
       chosen_arch = choose_arch_by_name (val, vallen);
-      if (chosen_arch != NULL)
+      if (chosen_arch)
 	mips_cp1_names = chosen_arch->cp1_names;
       return;
     }
@@ -1091,7 +1091,7 @@ parse_mips_dis_option (const char *option, unsigned int len)
       && strlen ("hwr-names") == optionlen)
     {
       chosen_arch = choose_arch_by_name (val, vallen);
-      if (chosen_arch != NULL)
+      if (chosen_arch)
 	mips_hwr_names = chosen_arch->hwr_names;
       return;
     }
@@ -1104,13 +1104,13 @@ parse_mips_dis_option (const char *option, unsigned int len)
 	 numeric register names for all registers.  Other than
 	 that, a given name probably won't match both.  */
       chosen_abi = choose_abi_by_name (val, vallen);
-      if (chosen_abi != NULL)
+      if (chosen_abi)
 	{
 	  mips_gpr_names = chosen_abi->gpr_names;
 	  mips_fpr_names = chosen_abi->fpr_names;
 	}
       chosen_arch = choose_arch_by_name (val, vallen);
-      if (chosen_arch != NULL)
+      if (chosen_arch)
 	{
 	  mips_cp0_names = chosen_arch->cp0_names;
 	  mips_cp0sel_names = chosen_arch->cp0sel_names;
@@ -1871,7 +1871,7 @@ print_insn_args (struct disassemble_info *info,
 	      n = lookup_mips_cp0sel_name (mips_cp0sel_names,
 					   mips_cp0sel_names_len,
 					   reg, sel);
-	      if (n != NULL)
+	      if (n)
 		infprintf (is, "%s", n->name);
 	      else
 		infprintf (is, "$%d,%d", reg, sel);
@@ -1955,7 +1955,7 @@ print_insn_mips (bfd_vma memaddr,
   info->target2 = 0;
 
   op = mips_hash[GET_OP (word, OP)];
-  if (op != NULL)
+  if (op)
     {
       for (; op < &mips_opcodes[NUMOPCODES]; op++)
 	{
@@ -2364,7 +2364,7 @@ print_insn_mips16 (bfd_vma memaddr, struct disassemble_info *info)
 		  n = lookup_mips_cp0sel_name (mips_cp0sel_names,
 					       mips_cp0sel_names_len,
 					       reg, sel);
-		  if (n != NULL)
+		  if (n)
 		    infprintf (is, "%s", n->name);
 		  else
 		    infprintf (is, "$%d,%d", reg, sel);

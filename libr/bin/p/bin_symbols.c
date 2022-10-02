@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2018 - pancake */
+/* radare - LGPL - Copyright 2018-2022 - pancake */
 
 #include <r_types.h>
 #include <r_util.h>
@@ -42,7 +42,7 @@ typedef struct symbols_metadata_t { // 0x40
 // header starts at offset 0 and ends at offset 0x40
 static SymbolsHeader parseHeader(RBuffer *buf) {
 	ut8 b[64];
-	SymbolsHeader sh = { 0 };
+	SymbolsHeader sh = {0};
 	(void)r_buf_read_at (buf, 0, b, sizeof (b));
 	sh.magic = r_read_le32 (b);
 	sh.version = r_read_le32 (b + 4);
@@ -84,8 +84,8 @@ static const char *subtypeString(int n) {
 
 // metadata section starts at offset 0x40 and ends around 0xb0 depending on filenamelength
 static SymbolsMetadata parseMetadata(RBuffer *buf, int off) {
-	SymbolsMetadata sm = { 0 };
-	ut8 b[0x100] = { 0 };
+	SymbolsMetadata sm = {0};
+	ut8 b[0x100] = {0};
 	(void)r_buf_read_at (buf, off, b, sizeof (b));
 	sm.addr = off;
 	sm.cputype = r_read_le32 (b);
@@ -181,12 +181,15 @@ static RBinSymbol *bin_symbol_from_symbol(RCoreSymCacheElement *element, RCoreSy
 
 static RCoreSymCacheElement *parseDragons(RBinFile *bf, RBuffer *buf, int off, int bits, R_OWN char *file_name) {
 	D eprintf ("Dragons at 0x%x\n", off);
-	ut64 size = r_buf_size (buf);
+	st64 size = r_buf_size (buf);
 	if (off >= size) {
 		return NULL;
 	}
 	size -= off;
 	if (!size) {
+		return NULL;
+	}
+	if (size < 32) {
 		return NULL;
 	}
 	ut8 *b = malloc (size);
@@ -300,18 +303,22 @@ static RList *sections(RBinFile *bf) {
 	r_return_val_if_fail (res && bf->o && bf->o->bin_obj, res);
 	RCoreSymCacheElement *element = bf->o->bin_obj;
 	size_t i;
-	for (i = 0; i < element->hdr->n_segments; i++) {
-		RCoreSymCacheElementSegment *seg = &element->segments[i];
-		RBinSection *s = bin_section_from_segment (seg);
-		if (s) {
-			r_list_append (res, s);
+	if (element->segments) {
+		for (i = 0; i < element->hdr->n_segments; i++) {
+			RCoreSymCacheElementSegment *seg = &element->segments[i];
+			RBinSection *s = bin_section_from_segment (seg);
+			if (s) {
+				r_list_append (res, s);
+			}
 		}
 	}
-	for (i = 0; i < element->hdr->n_sections; i++) {
-		RCoreSymCacheElementSection *sect = &element->sections[i];
-		RBinSection *s = bin_section_from_section (sect);
-		if (s) {
-			r_list_append (res, s);
+	if (element->sections) {
+		for (i = 0; i < element->hdr->n_sections; i++) {
+			RCoreSymCacheElementSection *sect = &element->sections[i];
+			RBinSection *s = bin_section_from_section (sect);
+			if (s) {
+				r_list_append (res, s);
+			}
 		}
 	}
 	return res;
@@ -346,36 +353,43 @@ static bool check_buffer(RBinFile *bf, RBuffer *b) {
 }
 
 static RList *symbols(RBinFile *bf) {
-	RList *res = r_list_newf ((RListFree)r_bin_symbol_free);
-	r_return_val_if_fail (res && bf->o && bf->o->bin_obj, res);
+	r_return_val_if_fail (bf && bf->o && bf->o->bin_obj, NULL);
 	RCoreSymCacheElement *element = bf->o->bin_obj;
 	size_t i;
 	HtUU *hash = ht_uu_new0 ();
 	if (!hash) {
-		return res;
+		return NULL;
 	}
+	RList *res = r_list_newf ((RListFree)r_bin_symbol_free);
 	bool found = false;
-	for (i = 0; i < element->hdr->n_lined_symbols; i++) {
-		RCoreSymCacheElementSymbol *sym = (RCoreSymCacheElementSymbol *)&element->lined_symbols[i];
-		ht_uu_find (hash, sym->paddr, &found);
-		if (found) {
-			continue;
-		}
-		RBinSymbol *s = bin_symbol_from_symbol (element, sym);
-		if (s) {
-			r_list_append (res, s);
-			ht_uu_insert (hash, sym->paddr, 1);
+	if (element->lined_symbols) {
+		for (i = 0; i < element->hdr->n_lined_symbols; i++) {
+			RCoreSymCacheElementSymbol *sym = (RCoreSymCacheElementSymbol *)&element->lined_symbols[i];
+			if (!sym) {
+				break;
+			}
+			ht_uu_find (hash, sym->paddr, &found);
+			if (found) {
+				continue;
+			}
+			RBinSymbol *s = bin_symbol_from_symbol (element, sym);
+			if (s) {
+				r_list_append (res, s);
+				ht_uu_insert (hash, sym->paddr, 1);
+			}
 		}
 	}
-	for (i = 0; i < element->hdr->n_symbols; i++) {
-		RCoreSymCacheElementSymbol *sym = &element->symbols[i];
-		ht_uu_find (hash, sym->paddr, &found);
-		if (found) {
-			continue;
-		}
-		RBinSymbol *s = bin_symbol_from_symbol (element, sym);
-		if (s) {
-			r_list_append (res, s);
+	if (element->symbols) {
+		for (i = 0; i < element->hdr->n_symbols; i++) {
+			RCoreSymCacheElementSymbol *sym = &element->symbols[i];
+			ht_uu_find (hash, sym->paddr, &found);
+			if (found) {
+				continue;
+			}
+			RBinSymbol *s = bin_symbol_from_symbol (element, sym);
+			if (s) {
+				r_list_append (res, s);
+			}
 		}
 	}
 	ht_uu_free (hash);

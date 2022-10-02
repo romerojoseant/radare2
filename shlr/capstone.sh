@@ -31,6 +31,7 @@ patch_capstone() {
 		CV=v4
 	fi
 	for patchfile in ../capstone-patches/$CV/*.patch ; do
+		echo "Patch $patchFile"
 		patch -p 1 < "${patchfile}"
 	done
 }
@@ -66,6 +67,12 @@ git_clone() {
 }
 
 get_capstone() {
+	if [ -d capstone ]; then
+		return
+	fi
+	if [ -f capstone ]; then
+		rm -f capstone
+	fi
 	git_clone || fatal_msg 'Clone failed'
 	cd capstone || fatal_msg 'Failed to chdir'
 	parse_capstone_tip
@@ -73,6 +80,7 @@ get_capstone() {
 }
 
 update_capstone_git() {
+	cd capstone || fatal_msg 'Failed to chdir'
 	git checkout "${CS_BRA}" || fatal_msg "Cannot checkout to branch $CS_BRA"
 #	if [ -n "${CS_TIP}" ]; then
 #		# if our shallow clone not contains CS_TIP, clone until it
@@ -92,9 +100,17 @@ update_capstone_git() {
 		fi
 		env EDITOR=cat git revert --no-edit "${CS_REV}"
 	fi
+	cd ..
 }
 
 ### MAIN ###
+
+pkg-config --cflags capstone > /dev/null 2>&1
+if [ $? = 0 ]; then
+	echo "Warning: You have system-wide capstone installation, but im gonna clone a new copy of it"
+	echo "Warning: Use ./configure --with-syscapstone # in case you prefer to use system one"
+#	exit 0
+fi
 
 if [ -n "${CS_ARCHIVE}" ]; then
 	echo "CS_ARCHIVE=${CS_ARCHIVE}"
@@ -120,7 +136,7 @@ if [ -n "${CS_ARCHIVE}" ]; then
 else
 	git_assert
 	get_capstone
-	# if [ ! -d capstone/.git ]; then update_capstone_git fi
+	[ -d capstone/.git ] && update_capstone_git
 fi
 cd capstone || fatal_msg 'Cannot change working directory'
 patch_capstone

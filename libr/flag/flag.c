@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2007-2021 - pancake, ret2libc */
+/* radare - LGPL - Copyright 2007-2022 - pancake, ret2libc */
 
 #include <r_flag.h>
 #include <r_util.h>
@@ -94,6 +94,7 @@ static void remove_offsetmap(RFlag *f, RFlagItem *item) {
 		if (r_list_empty (flags->flags)) {
 			r_skiplist_delete (f->by_off, flags);
 		}
+		R_DIRTY (f);
 	}
 }
 
@@ -154,6 +155,7 @@ static bool update_flag_item_offset(RFlag *f, RFlagItem *item, ut64 newoff, bool
 		}
 
 		r_list_append (flagsAtOffset->flags, item);
+		R_DIRTY (f);
 		return true;
 	}
 
@@ -176,6 +178,7 @@ static bool update_flag_item_name(RFlag *f, RFlagItem *item, const char *newname
 		: ht_pp_insert (f->ht_name, fname, item);
 	if (res) {
 		set_name (item, fname);
+		R_DIRTY (f);
 		return true;
 	}
 	free (fname);
@@ -234,7 +237,8 @@ R_API RFlag *r_flag_new(void) {
 	f->tags = sdb_new0 ();
 	f->ht_name = ht_pp_new (NULL, ht_free_flag, NULL);
 	f->by_off = r_skiplist_new (flag_skiplist_free, flag_skiplist_cmp);
-	new_spaces(f);
+	new_spaces (f);
+	R_DIRTY (f);
 	return f;
 }
 
@@ -395,11 +399,9 @@ R_API void r_flag_list(RFlag *f, int rad, const char *pfx) {
 		rad = pfx[0];
 		pfx = NULL;
 	}
-
 	if (pfx && !*pfx) {
 		pfx = NULL;
 	}
-
 	switch (rad) {
 	case 'q':
 		r_flag_foreach_space (f, r_flag_space_cur (f), print_flag_name, f);
@@ -719,6 +721,7 @@ R_API RFlagItem *r_flag_set_next(RFlag *f, const char *name, ut64 off, ut32 size
 			RFlagItem *fi = r_flag_set (f, newName, off, size);
 			if (fi) {
 				free (newName);
+				R_DIRTY (f);
 				return fi;
 			}
 		}
@@ -734,6 +737,7 @@ R_API RFlagItem *r_flag_set_inspace(RFlag *f, const char *space, const char *nam
 	if (space) {
 		r_flag_space_pop (f);
 	}
+	R_DIRTY (f);
 	return fi;
 }
 
@@ -833,6 +837,7 @@ R_API bool r_flag_unset(RFlag *f, RFlagItem *item) {
 	r_return_val_if_fail (f && item, false);
 	remove_offsetmap (f, item);
 	ht_pp_delete (f->ht_name, item->name);
+	R_DIRTY (f);
 	return true;
 }
 
@@ -870,6 +875,7 @@ R_API int r_flag_unset_glob(RFlag *f, const char *glob) {
 
 	struct unset_foreach_t u = { .f = f, .n = 0 };
 	r_flag_foreach_glob (f, glob, unset_foreach, &u);
+	R_DIRTY (f);
 	return u.n;
 }
 
@@ -878,6 +884,7 @@ R_API int r_flag_unset_glob(RFlag *f, const char *glob) {
 R_API bool r_flag_unset_name(RFlag *f, const char *name) {
 	r_return_val_if_fail (f, false);
 	RFlagItem *item = ht_pp_find (f->ht_name, name, NULL);
+	R_DIRTY (f);
 	return item && r_flag_unset (f, item);
 }
 
@@ -889,6 +896,7 @@ R_API void r_flag_unset_all(RFlag *f) {
 	r_skiplist_purge (f->by_off);
 	r_spaces_fini (&f->spaces);
 	new_spaces (f);
+	R_DIRTY (f);
 }
 
 struct flag_relocate_t {
@@ -923,7 +931,6 @@ R_API int r_flag_relocate(RFlag *f, ut64 off, ut64 off_mask, ut64 to) {
 		.to = to,
 		.n = 0
 	};
-
 	r_flag_foreach (f, flag_relocate_foreach, &u);
 	return u.n;
 }
@@ -1003,7 +1010,7 @@ R_API void r_flag_foreach_glob(RFlag *f, const char *glob, RFlagItemCb cb, void 
 }
 
 R_API void r_flag_foreach_space_glob(RFlag *f, const char *glob, const RSpace *space, RFlagItemCb cb, void *user) {
-        FOREACH_BODY (IS_FI_IN_SPACE (fi, space) && (!glob || r_str_glob (fi->name, glob)));
+	FOREACH_BODY (IS_FI_IN_SPACE (fi, space) && (!glob || r_str_glob (fi->name, glob)));
 }
 
 R_API void r_flag_foreach_space(RFlag *f, const RSpace *space, RFlagItemCb cb, void *user) {

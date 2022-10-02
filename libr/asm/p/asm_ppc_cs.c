@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2014-2021 - pancake */
+/* radare2 - LGPL - Copyright 2014-2022 - pancake */
 
 #include <r_asm.h>
 #include <r_lib.h>
@@ -58,21 +58,24 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	int n, ret;
 	ut64 off = a->pc;
 	cs_insn* insn;
-	int mode = (a->bits == 64) ? CS_MODE_64 : (a->bits == 32) ? CS_MODE_32 : 0;
-	mode |= a->big_endian ? CS_MODE_BIG_ENDIAN : CS_MODE_LITTLE_ENDIAN;
+	const int bits = a->config->bits;
+	int mode = (bits == 64) ? CS_MODE_64 : (bits == 32) ? CS_MODE_32 : 0;
+	const bool be = a->config->big_endian;
+	mode |= be ? CS_MODE_BIG_ENDIAN : CS_MODE_LITTLE_ENDIAN;
 
-	if (a->cpu && strncmp (a->cpu, "vle", 3) == 0) {
+	const char *cpu = a->config->cpu;
+	if (cpu && strncmp (cpu, "vle", 3) == 0) {
 		// vle is big-endian only
-		if (!a->big_endian) {
+		if (!be) {
 			return -1;
 		}
 		ret = decompile_vle (a, op, buf, len);
 		if (ret >= 0) {
 			return op->size;
 		}
-	} else if (a->cpu && strncmp (a->cpu, "ps", 2) == 0) {
+	} else if (cpu && strncmp (cpu, "ps", 2) == 0) {
 		// libps is big-endian only
-		if (!a->big_endian) {
+		if (!be) {
 			return -1;
 		}
 		ret = decompile_ps (a, op, buf, len);
@@ -80,11 +83,11 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 			return op->size;
 		}
 	}
-	if (mode != omode || a->bits != obits) {
+	if (mode != omode || bits != obits) {
 		cs_close (&handle);
 		handle = 0;
 		omode = mode;
-		obits = a->bits;
+		obits = bits;
 	}
 	if (handle == 0) {
 		ret = cs_open (CS_ARCH_PPC, mode, &handle);
@@ -97,8 +100,7 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	n = cs_disasm (handle, (const ut8*) buf, len, off, 1, &insn);
 	op->size = 4;
 	if (n > 0 && insn->size > 0) {
-		const char *opstr = sdb_fmt ("%s%s%s", insn->mnemonic,
-			insn->op_str[0] ? " " : "", insn->op_str);
+		r_strf_var (opstr, 256, "%s%s%s", insn->mnemonic, insn->op_str[0] ? " " : "", insn->op_str);
 		r_asm_op_set_asm (op, opstr);
 		cs_free (insn, n);
 		return op->size;

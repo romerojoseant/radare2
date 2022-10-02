@@ -5,16 +5,20 @@
 #include <r_lib.h>
 #include <r_asm.h>
 #include <r_anal.h>
-#include "../../asm/arch/z80/z80_tab.h"
+#include "../arch/z80/z80_tab.h"
+#include "../arch/z80/z80asm.c"
+#include "../arch/z80/z80.c"
 
-static void z80_op_size(const ut8 *data, int len, int *size, int *size_prefix) {
+static void z80_op_size(const ut8 *_data, int len, int *size, int *size_prefix) {
+	ut8 data[4] = {0};
 	int type = 0;
 	if (len < 1) {
 		return;
 	}
+	memcpy (data, _data, R_MIN (len, 4));
 	switch (data[0]) {
 	case 0xed:
-		if (len > 1) {
+		{
 			int idx = z80_ed_branch_index_res (data[1]);
 			type = ed[idx].type;
 		}
@@ -23,14 +27,10 @@ static void z80_op_size(const ut8 *data, int len, int *size, int *size_prefix) {
 		type = Z80_OP16;
 		break;
 	case 0xdd:
-		if (len >1) {
-			type = dd[z80_fddd_branch_index_res(data[1])].type;
-		}
+		type = dd[z80_fddd_branch_index_res(data[1])].type;
 		break;
 	case 0xfd:
-		if (len > 1) {
-			type = fd[z80_fddd_branch_index_res(data[1])].type;
-		}
+		type = fd[z80_fddd_branch_index_res(data[1])].type;
 		break;
 	default:
 		type = z80_op[data[0]].type;
@@ -53,14 +53,80 @@ static void z80_op_size(const ut8 *data, int len, int *size, int *size_prefix) {
 	}
 }
 
-static int z80_anal_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int len, RAnalOpMask mask) {
+static char *z80dis(const ut8 *buf, int len) {
+	const char **cb_tab;
+	ut8 res;
+	int ret = z80OpLength (buf, len);
+	if (!ret) {
+		return NULL;
+	}
+	const z80_opcode *z_op = z80_op;
+	r_strf_buffer (64);
+	const char *buf_asm = "invalid";
+	switch (z_op[buf[0]].type) {
+	case Z80_OP8:
+		buf_asm = r_strf ("%s", z_op[buf[0]].name);
+		break;
+	case Z80_OP8^Z80_ARG8:
+		buf_asm = r_strf (z_op[buf[0]].name, buf[1]);
+		break;
+	case Z80_OP8^Z80_ARG16:
+		buf_asm = r_strf (z_op[buf[0]].name, buf[1]+(buf[2]<<8));
+		break;
+	case Z80_OP16:
+		cb_tab = (const char **) z_op[buf[0]].op_moar;
+		buf_asm = r_strf ("%s", cb_tab[buf[1]]);
+		break;
+	case Z80_OP_UNK ^ Z80_ENC1:
+		z_op = (const z80_opcode *)z_op[buf[0]].op_moar;
+		res = z80_ed_branch_index_res (buf[1]);
+		if (z_op[res].type == Z80_OP16) {
+			buf_asm = r_strf ("%s", z_op[res].name);
+		}
+		if (z_op[res].type == (Z80_OP16^Z80_ARG16)) {
+			buf_asm = r_strf (z_op[res].name, buf[2]+(buf[3]<<8));
+		}
+		break;
+	case Z80_OP_UNK ^ Z80_ENC0:
+		z_op = (const z80_opcode *)z_op[buf[0]].op_moar;
+		res = z80_fddd_branch_index_res (buf[1]);
+		if (z_op[res].type == Z80_OP16) {
+			buf_asm = r_strf ("%s", z_op[res].name);
+		}
+		if (z_op[res].type == (Z80_OP16^Z80_ARG16)) {
+			buf_asm = r_strf (z_op[res].name, buf[2]+(buf[3]<<8));
+		}
+		if (z_op[res].type == (Z80_OP16^Z80_ARG8)) {
+			buf_asm = r_strf (z_op[res].name, buf[2]);
+		}
+		if (z_op[res].type == (Z80_OP24 ^ Z80_ARG8)) {
+			cb_tab = (const char **) z_op[res].op_moar;
+			buf_asm = r_strf (cb_tab[z80_op_24_branch_index_res (buf[3])], buf[2]);
+		}
+		if (z_op[res].type == (Z80_OP16 ^ Z80_ARG8 ^ Z80_ARG16)) {
+			buf_asm = r_strf (z_op[res].name, buf[2], buf[3]);
+		}
+		break;
+	}
+	if (!strcmp (buf_asm, "invalid")) {
+		return NULL;
+	}
+	return strdup (buf_asm);
+}
+
+static int z80_anal_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *_data, int len, RAnalOpMask mask) {
 	int ilen = 0;
+	ut8 data[4] = {0};
+	memcpy (data, _data, R_MIN (len, 4));
 	z80_op_size (data, len, &ilen, &op->nopcode);
 
 	op->addr = addr;
 	op->size = ilen;
 	op->type = R_ANAL_OP_TYPE_UNK;
 
+	if (mask & R_ANAL_OP_MASK_DISASM) {
+		op->mnemonic = z80dis (data, len);
+	}
 	switch (data[0]) {
 	case 0x00:
 		op->type = R_ANAL_OP_TYPE_NOP;
@@ -104,7 +170,7 @@ static int z80_anal_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int
 	case 0x97:
 	case 0xd6:
 		op->type = R_ANAL_OP_TYPE_SUB;
-                break;
+		break;
 	case 0x22: // ld (**), hl
 		op->type = R_ANAL_OP_TYPE_STORE;
 		op->refptr = 2;
@@ -249,12 +315,12 @@ static int z80_anal_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int
 	case 0xf2:
 	case 0xfa:
 		op->type = R_ANAL_OP_TYPE_CJMP;
-		op->jump = (len > 2)? data[1] | data[2] << 8: 0;
+		op->jump = data[1] | data[2] << 8;
 		op->fail = addr + ilen;
 		break;
 	case 0xc3: // jp xx
 		op->type = R_ANAL_OP_TYPE_JMP;
-		op->jump = (len > 2)? data[1] | data[2] << 8: 0;
+		op->jump = data[1] | (data[2] << 8);
 		break;
 	case 0xe9: // jp (HL)
 		op->type = R_ANAL_OP_TYPE_UJMP;
@@ -316,7 +382,7 @@ static int z80_anal_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int
 		op->jump = data[1] | data[2] << 8;
 		break;
 	case 0xcb:			//the same as for gameboy
-		switch(data[1]/8) {
+		switch (data[1] / 8) {
 		case 0:
 		case 2:
 		case 4:
@@ -369,6 +435,7 @@ static bool set_reg_profile(RAnal *anal) {
 	const char *p =
 		"=PC	mpc\n"
 		"=SP	sp\n"
+		"=SN	a\n"
 		"=A0	af\n"
 		"=A1	bc\n"
 		"=A2	de\n"
@@ -421,15 +488,20 @@ static int archinfo(RAnal *anal, int q) {
 	return 1;
 }
 
+static int z80_anal_opasm(RAnal *a, ut64 addr, const char *str, ut8 *outbuf, int outsize) {
+	return z80asm (outbuf, str);
+}
+
 RAnalPlugin r_anal_plugin_z80 = {
 	.name = "z80",
 	.arch = "z80",
-	.license = "LGPL3",
+	.license = "GPL",
 	.bits = 16,
 	.set_reg_profile = &set_reg_profile,
 	.desc = "Z80 CPU code analysis plugin",
 	.archinfo = archinfo,
 	.op = &z80_anal_op,
+	.opasm = &z80_anal_opasm,
 };
 
 #ifndef R2_PLUGIN_INCORE

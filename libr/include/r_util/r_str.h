@@ -22,6 +22,10 @@ typedef enum {
 
 typedef int (*RStrRangeCallback) (void *, int);
 
+#define r_strf_buffer(s) char strbuf[s]
+#define r_strf_var(n,s, f, ...) char n[s]; snprintf (n, s, f, __VA_ARGS__);
+#define r_strf(s,...) (snprintf (strbuf, sizeof(strbuf), s, __VA_ARGS__)?strbuf: strbuf)
+
 typedef struct r_charset_rune_t {
 	ut8 *ch;
 	ut8 *hx;
@@ -52,7 +56,7 @@ R_API bool r_charset_open(RCharset *c, const char *cs);
 R_API bool r_charset_use(RCharset *c, const char *cf);
 R_API RList *r_charset_list(RCharset *c);
 R_API void r_charset_close(RCharset *c);
-R_API RCharsetRune * add_rune(RCharsetRune *rcsr, const ut8 *ch, const ut8 *hx);
+R_API RCharsetRune *add_rune(RCharsetRune *rcsr, const ut8 *ch, const ut8 *hx);
 R_API RCharsetRune *search_from_hex(RCharsetRune *rcsr, const ut8 *hx);
 R_API RCharsetRune *search_from_char(RCharsetRune *rcsr, const ut8 *ch);
 
@@ -60,7 +64,7 @@ R_API RCharsetRune *search_from_char(RCharsetRune *rcsr, const ut8 *ch);
 R_API char *r_str_repeat(const char *ch, int sz);
 R_API const char *r_str_pad(const char ch, int len);
 R_API const char *r_str_rstr(const char *base, const char *p);
-R_API const char *r_strstr_ansi (const char *a, const char *b);
+R_API const char *r_strstr_ansi(const char *a, const char *b);
 R_API const char *r_str_rchr(const char *base, const char *p, int ch);
 R_API const char *r_str_closer_chr(const char *b, const char *s);
 R_API int r_str_bounds(const char *str, int *h);
@@ -109,7 +113,7 @@ R_API int r_str_arg_unescape(char *arg);
 R_API char **r_str_argv(const char *str, int *_argc);
 R_API void r_str_argv_free(char **argv);
 R_API char *r_str_new(const char *str);
-R_API int r_snprintf (char *string, int len, const char *fmt, ...) R_PRINTF_CHECK(3, 4);
+R_API int r_snprintf(char *string, int len, const char *fmt, ...) R_PRINTF_CHECK(3, 4);
 R_API bool r_str_is_ascii(const char *str);
 R_API char *r_str_nextword(char *s, char ch);
 R_API bool r_str_is_printable(const char *str);
@@ -170,7 +174,7 @@ R_API char *r_str_dup(char *ptr, const char *string);
 R_API int r_str_inject(char *begin, char *end, char *str, int maxlen);
 R_API int r_str_delta(char *p, char a, char b);
 R_API void r_str_filter(char *str, int len);
-R_API const char * r_str_tok(const char *str1, const char b, size_t len);
+R_API const char *r_str_tok(const char *str1, const char b, size_t len);
 R_API wchar_t *r_str_mb_to_wc(const char *buf);
 R_API char *r_str_wc_to_mb(const wchar_t *buf);
 R_API wchar_t *r_str_mb_to_wc_l(const char *buf, int len);
@@ -232,8 +236,8 @@ R_API int r_str_binstr2bin(const char *str, ut8 *out, int outlen);
 R_API char *r_str_between(const char *str, const char *prefix, const char *suffix);
 R_API bool r_str_startswith(const char *str, const char *needle);
 R_API bool r_str_endswith(const char *str, const char *needle);
-R_API bool r_str_isnumber (const char *str);
-R_API const char *r_str_last (const char *in, const char *ch);
+R_API bool r_str_isnumber(const char *str);
+R_API const char *r_str_last(const char *in, const char *ch);
 R_API char* r_str_highlight(char *str, const char *word, const char *color, const char *color_reset);
 R_API char *r_qrcode_gen(const ut8 *text, int len, bool utf8, bool inverted);
 R_API char *r_str_from_ut64(ut64 val);
@@ -245,7 +249,7 @@ R_API const char *r_str_sep(const char *base, const char *sep);
 R_API const char *r_str_rsep(const char *base, const char *p, const char *sep);
 R_API char *r_str_donut(int size);
 R_API char *r_str_version(const char *program);
-R_API char *r_str_ss(const char* msg, const char *nl);
+R_API char *r_str_ss(const char* msg, const char *nl, int cs);
 
 #ifdef __cplusplus
 }

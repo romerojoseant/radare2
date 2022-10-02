@@ -343,7 +343,7 @@ R_API char *r_hex_from_code(const char *code) {
 	if (strstr (code, "var")) {
 		return r_hex_from_js (code);
 	}
-        /* Python */
+	/* Python */
 	return r_hex_from_py (code);
 }
 
@@ -450,18 +450,60 @@ R_API int r_hex_str2bin(const char *in, ut8 *out) {
 	return nibbles / 2;
 }
 
+// get the hex chars from start of string, until first non-hex char, as a heap
+// allocated ut8* buffer
+R_API int r_hex_str2bin_until_new(const char *in, ut8 **out) {
+	// r_return_val_if_fail (in && out, -1);
+	if (!in || !out) {
+		return -1;
+	}
+	size_t len = strlen (in);
+	if (len <= 1) {
+		return 0;
+	}
+	len = (len + 1) / 2;
+
+	int ret = -1;
+	size_t nibbles = 0;
+	ut8 *buf = malloc (len);
+	if (buf) {
+		while (!r_hex_to_byte (buf + nibbles / 2, *in)) {
+			nibbles++;
+			in++;
+		}
+
+		if (!nibbles || nibbles % 2) {
+			ret = 0;
+		} else {
+			ret = nibbles / 2;
+			*out = (ut8*)realloc (buf, ret);
+			if (!*out) {
+				ret = -1;
+			}
+		}
+
+		if (ret <= 0) {
+			free (buf);
+		}
+	}
+	return ret;
+}
+
 R_API int r_hex_str2binmask(const char *in, ut8 *out, ut8 *mask) {
 	ut8 *ptr;
-	int len, ilen = strlen (in)+1;
-	int has_nibble = 0;
+	int ilen = strlen (in) + 1;
 	memcpy (out, in, ilen);
 	for (ptr = out; *ptr; ptr++) {
 		if (*ptr == '.') {
 			*ptr = '0';
 		}
 	}
-	len = r_hex_str2bin ((char*)out, out);
-	if (len<0) { has_nibble = 1; len = -(len+1); }
+	int len = r_hex_str2bin ((char*)out, out);
+	bool has_nibble = false;
+	if (len < 0) {
+		has_nibble = true;
+		len = -(len + 1);
+	}
 	if (len != -1) {
 		memcpy (mask, in, ilen);
 		if (has_nibble) {

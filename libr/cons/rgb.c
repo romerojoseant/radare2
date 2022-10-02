@@ -1,11 +1,12 @@
-/* radare - LGPL - Copyright 2013-2020 - pancake, xarkes */
+/* radare - LGPL - Copyright 2013-2022 - pancake, xarkes */
 /* ansi 256 color extension for r_cons */
 /* https://en.wikipedia.org/wiki/ANSI_color */
 
 #include <r_cons.h>
+#include <r_th.h>
 
-int color_table[256] = { 0 };
-int value_range[6] = { 0x00, 0x5f, 0x87, 0xaf, 0xd7, 0xff};
+static R_TH_LOCAL int color_table[256] = {0};
+static R_TH_LOCAL int value_range[6] = { 0x00, 0x5f, 0x87, 0xaf, 0xd7, 0xff};
 
 static void init_color_table(void) {
 	int i, r, g, b;
@@ -208,8 +209,7 @@ R_API char *r_cons_rgb_str_off(char *outstr, size_t sz, ut64 off) {
 }
 
 /* Compute color string depending on cons->color */
-static void r_cons_rgb_gen(RConsColorMode mode, char *outstr, size_t sz, ut8 attr, ut8 a, ut8 r, ut8 g, ut8 b,
-                           st8 id16) {
+static void r_cons_rgb_gen(RConsColorMode mode, char *outstr, size_t sz, ut8 attr, ut8 a, ut8 r, ut8 g, ut8 b, st8 id16) {
 	ut8 fgbg = (a == ALPHA_BG)? 48: 38; // ANSI codes for Background/Foreground
 
 	if (sz < 4) { // must have at least room for "<esc>[m\0"
@@ -253,8 +253,11 @@ static void r_cons_rgb_gen(RConsColorMode mode, char *outstr, size_t sz, ut8 att
 			c = id16 % 8;
 			bright = id16 >= 8 ? 60 : 0;
 		} else {
-			bright = (r == 0x80 && g == 0x80 && b == 0x80) ? 53
-			         : (r == 0xff || g == 0xff || b == 0xff) ? 60 : 0;  // eco bright-specific
+			bright = (r == 0x80 && g == 0x80 && b == 0x80)
+				? 53
+				: (r == 0xff || g == 0xff || b == 0xff)
+					? 60
+					: 0;  // eco bright-specific
 			if (r == g && g == b) {
 				r = (r > 0x7f) ? 1 : 0;
 				g = (g > 0x7f) ? 1 : 0;
@@ -300,7 +303,7 @@ R_API char *r_cons_rgb_str_mode(RConsColorMode mode, char *outstr, size_t sz, RC
 	// APPEND
 	size_t len = strlen (outstr);
 	r_cons_rgb_gen (mode, outstr + len, sz - len, rcolor->attr, rcolor->a, rcolor->r, rcolor->g, rcolor->b,
-	                rcolor->id16);
+			rcolor->id16);
 
 	return outstr;
 }

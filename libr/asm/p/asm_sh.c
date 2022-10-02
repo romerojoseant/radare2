@@ -13,7 +13,7 @@ static unsigned long Offset = 0;
 static RStrBuf *buf_global = NULL;
 static unsigned char bytes[4];
 
-static int sh_buffer_read_memory (bfd_vma memaddr, bfd_byte *myaddr, unsigned int length, struct disassemble_info *info) {
+static int sh_buffer_read_memory(bfd_vma memaddr, bfd_byte *myaddr, unsigned int length, struct disassemble_info *info) {
 	//this is obviously wrong. but how can we read arbitrary data @ memaddr from here?
 	memcpy (myaddr, bytes, length);
 	return 0;
@@ -22,7 +22,7 @@ static int sh_buffer_read_memory (bfd_vma memaddr, bfd_byte *myaddr, unsigned in
 int print_insn_shl (bfd_vma memaddr, struct disassemble_info *info);
 int print_insn_shb (bfd_vma memaddr, struct disassemble_info *info);
 
-static int symbol_at_address(bfd_vma addr, struct disassemble_info * info) {
+static int symbol_at_address(bfd_vma addr, struct disassemble_info *info) {
 	return 0;
 }
 
@@ -49,7 +49,7 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	disasm_obj.symbol_at_address_func = &symbol_at_address;
 	disasm_obj.memory_error_func = &memory_error_func;
 	disasm_obj.print_address_func = &generic_print_address_func;
-	disasm_obj.endian = !a->big_endian;
+	disasm_obj.endian = !a->config->big_endian;
 	disasm_obj.fprintf_func = &generic_fprintf_func;
 	disasm_obj.stream = stdout;
 

@@ -188,7 +188,7 @@ static int __get_avx(HANDLE th, ut128 xmm[16], ut128 ymm[16]) {
 		ymm[index].Low = 0;
 		xmm[index].Low = 0;
 	}
-	if (newxmm != NULL) {
+	if (newxmm) {
 		for (index = 0; index < nregs; index++) {
 			xmm[index].High = newxmm[index].High;
 			xmm[index].Low = newxmm[index].Low;
@@ -422,7 +422,7 @@ static char *__get_file_name_from_handle(HANDLE handle_file) {
 	if (!handle_file_map) {
 		goto err_get_file_name_from_handle;
 	}
-	filename = malloc ((MAX_PATH + 1) * sizeof (TCHAR));
+	filename = calloc ((MAX_PATH + 1), sizeof (TCHAR));
 	if (!filename) {
 		goto err_get_file_name_from_handle;
 	}
@@ -432,12 +432,12 @@ static char *__get_file_name_from_handle(HANDLE handle_file) {
 		R_FREE (filename);
 		goto err_get_file_name_from_handle;
 	}
-	TCHAR temp_buffer[512];
+	TCHAR temp_buffer[MAX_PATH + 1];
 	/* Translate path with device name to drive letters. */
 	if (!GetLogicalDriveStrings (_countof (temp_buffer) - 1, temp_buffer)) {
 		goto err_get_file_name_from_handle;
 	}
-	TCHAR name[MAX_PATH];
+	TCHAR name[MAX_PATH + 1];
 	TCHAR drive[3] = {' ', ':', 0};
 	LPTSTR cur_drive = temp_buffer;
 	while (*cur_drive) {
@@ -449,7 +449,7 @@ static char *__get_file_name_from_handle(HANDLE handle_file) {
 			if (name_length < MAX_PATH) {
 				if (_tcsnicmp (filename, name, name_length) == 0
 					&& *(filename + name_length) == '\\') {
-					TCHAR temp_filename[MAX_PATH];
+					TCHAR temp_filename[MAX_PATH + 1];
 					_sntprintf_s (temp_filename, MAX_PATH, _TRUNCATE, TEXT ("%s%s"),
 						drive, filename + name_length);
 					_tcsncpy (filename, temp_filename,
@@ -460,7 +460,7 @@ static char *__get_file_name_from_handle(HANDLE handle_file) {
 			}
 		}
 		cur_drive++;
-	} 
+	}
 err_get_file_name_from_handle:
 	if (map) {
 		UnmapViewOfFile (map);
@@ -479,8 +479,9 @@ err_get_file_name_from_handle:
 static char *__resolve_path(HANDLE ph, HANDLE mh) {
 	// TODO: add maximum path length support
 	const DWORD maxlength = MAX_PATH;
-	TCHAR filename[MAX_PATH];
-	DWORD length = r_w32_GetModuleFileNameEx (ph, mh, filename, maxlength);
+	TCHAR *filename = calloc (MAX_PATH + 1, sizeof (TCHAR));
+	DWORD length;
+	length = r_w32_GetModuleFileNameEx (ph, mh, filename, maxlength);
 	if (length > 0) {
 		return r_sys_conv_win_to_utf8 (filename);
 	}
@@ -516,6 +517,7 @@ static char *__resolve_path(HANDLE ph, HANDLE mh) {
 			}
 		}
 	}
+	free (filename);
 	return ret;
 }
 
@@ -639,7 +641,7 @@ bool w32_select(RDebug *dbg, int pid, int tid) {
 		}	
 	}
 
-	if (dbg->corebind.cfggeti (dbg->corebind.core, "dbg.threads")) {
+	if (dbg->coreb.cfggeti (dbg->coreb.core, "dbg.threads")) {
 		// Suspend all other threads
 		r_list_foreach (dbg->threads, it, th) {
 			if (!th->bFinished && !th->bSuspended && th->tid != selected) {
@@ -683,7 +685,7 @@ int w32_kill(RDebug *dbg, int pid, int tid, int sig) {
 void w32_break_process(void *user) {
 	RDebug *dbg = (RDebug *)user;
 	RW32Dw *wrap = dbg->user;
-	if (dbg->corebind.cfggeti (dbg->corebind.core, "dbg.threads")) {
+	if (dbg->coreb.cfggeti (dbg->coreb.core, "dbg.threads")) {
 		w32_select (dbg, wrap->pi.dwProcessId, -1); // Suspend all threads
 	} else {
 		if (!r_w32_DebugBreakProcess (wrap->pi.hProcess)) {
@@ -695,7 +697,7 @@ void w32_break_process(void *user) {
 	interrupted = true;
 }
 
-static RDebugReasonType exception_to_reason (DWORD ExceptionCode) {
+static RDebugReasonType exception_to_reason(DWORD ExceptionCode) {
 	switch (ExceptionCode) {
 	case EXCEPTION_ACCESS_VIOLATION:
 	case EXCEPTION_GUARD_PAGE:
@@ -857,7 +859,7 @@ RDebugReasonType w32_dbg_wait(RDebug *dbg, int pid) {
 			if (ret != R_DEBUG_REASON_USERSUSP) {
 				ret = R_DEBUG_REASON_NEW_TID;
 			}
-			dbg->corebind.cmdf (dbg->corebind.core, "f teb.%d @ 0x%p", tid, de.u.CreateThread.lpThreadLocalBase);
+			dbg->coreb.cmdf (dbg->coreb.core, "f teb.%d @ 0x%p", tid, de.u.CreateThread.lpThreadLocalBase);
 			next_event = 0;
 			break;
 		case EXIT_PROCESS_DEBUG_EVENT:
@@ -871,7 +873,7 @@ RDebugReasonType w32_dbg_wait(RDebug *dbg, int pid) {
 			} else {
 				__r_debug_thread_add (dbg, pid, tid, INVALID_HANDLE_VALUE, de.u.CreateThread.lpThreadLocalBase, de.u.CreateThread.lpStartAddress, TRUE);
 			}
-			dbg->corebind.cmdf (dbg->corebind.core, "f- teb.%d", tid);
+			dbg->coreb.cmdf (dbg->coreb.core, "f- teb.%d", tid);
 			if (de.dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT) {
 				exited_already = pid;
 				w32_continue (dbg, pid, tid, DBG_CONTINUE);
@@ -1008,7 +1010,8 @@ bool w32_step(RDebug *dbg) {
 bool w32_continue(RDebug *dbg, int pid, int tid, int sig) {
 	if (tid != dbg->tid) {
 		if (w32_select (dbg, pid, tid)) {
-			r_io_system (dbg->iob.io, sdb_fmt ("pid %d", dbg->tid));
+			r_strf_var (cmd, 32, "pid %d", dbg->tid);
+			r_io_system (dbg->iob.io, cmd);
 		}
 	}
 	// Don't continue with a thread that wasn't requested
@@ -1182,7 +1185,7 @@ static void __w32_info_user(RDebug *dbg, RDebugInfo *rdi) {
 	}
 	tok_usr = (PTOKEN_USER)malloc (tok_len);
 	if (!tok_usr) {
-		perror ("__w32_info_user/malloc tok_usr");
+		r_sys_perror ("__w32_info_user/malloc tok_usr");
 		goto err___w32_info_user;
 	}
 	if (!GetTokenInformation (h_tok, TokenUser, (LPVOID)tok_usr, tok_len, &tok_len)) {
@@ -1191,13 +1194,13 @@ static void __w32_info_user(RDebug *dbg, RDebugInfo *rdi) {
 	}
 	usr = (LPTSTR)calloc (usr_len, sizeof (TCHAR));
 	if (!usr) {
-		perror ("__w32_info_user/malloc usr");
+		r_sys_perror ("__w32_info_user/malloc usr");
 		goto err___w32_info_user;
 	}
 	*usr = '\0';
 	usr_dom = (LPTSTR)calloc (usr_dom_len, sizeof (TCHAR));
 	if (!usr_dom) {
-		perror ("__w32_info_user/malloc usr_dom");
+		r_sys_perror ("__w32_info_user/malloc usr_dom");
 		goto err___w32_info_user;
 	}
 	*usr_dom = '\0';

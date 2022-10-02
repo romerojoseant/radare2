@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2009-2021 - pancake */
+/* radare2 - LGPL - Copyright 2009-2022 - pancake */
 
 #include "r_core.h"
 #include "config.h"
@@ -117,13 +117,18 @@ static bool __isScriptFilename(const char *name) {
 	const char *ext = r_str_lchr (name, '.');
 	if (ext) {
 		ext++;
-		if (!strcmp (ext, "py")
-		||  !strcmp (ext, "js")
-		||  !strcmp (ext, "v")
-		||  !strcmp (ext, "c")
-		||  !strcmp (ext, "vala")
-		||  !strcmp (ext, "pl")
-		||  !strcmp (ext, "lua")) {
+		if (0
+		|| !strcmp (ext, "c")
+		|| !strcmp (ext, "go")
+		|| !strcmp (ext, "js")
+		|| !strcmp (ext, "lua")
+		|| !strcmp (ext, "pl")
+		|| !strcmp (ext, "py")
+		|| !strcmp (ext, "qjs")
+		|| !strcmp (ext, "rs")
+		|| !strcmp (ext, "v")
+		|| !strcmp (ext, "vala")
+		|| !strcmp (ext, "wren")) {
 			return true;
 		}
 	}
@@ -140,7 +145,7 @@ R_API bool r_core_loadlibs(RCore *core, int where, const char *path) {
 	}
 	// load script plugins
 	char *homeplugindir = r_str_home (R2_HOME_PLUGINS);
-        RList *files = r_sys_dir (homeplugindir);
+	RList *files = r_sys_dir (homeplugindir);
 	RListIter *iter;
 	char *file;
 	r_list_foreach (files, iter, file) {

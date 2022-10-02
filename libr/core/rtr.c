@@ -74,7 +74,7 @@ static void http_logf(RCore *core, const char *fmt, ...) {
 	va_end (ap);
 }
 
-static char *rtrcmd (TextLog T, const char *str) {
+static char *rtrcmd(TextLog T, const char *str) {
 	char *res, *ptr2;
 	char *ptr = r_str_uri_encode (str);
 	char *uri = r_str_newf ("http://%s:%s/%s%s", T.host, T.port, T.file, ptr? ptr: str);
@@ -105,12 +105,12 @@ static void showcursor(RCore *core, int x) {
 
 // TODO: rename /name to /nick or /so?
 // clone of textlog_chat () using rtrcmd()
-static void rtr_textlog_chat (RCore *core, TextLog T) {
+static void rtr_textlog_chat(RCore *core, TextLog T) {
 	char prompt[64];
 	char buf[1024];
 	int lastmsg = 0;
 	const char *me = r_config_get (core->config, "cfg.user");
-	char *ret, msg[1024];
+	char *ret, msg[1024] = {0};
 
 	eprintf ("Type '/help' for commands and ^D to quit:\n");
 	char *oldprompt = strdup (r_line_singleton ()->prompt);
@@ -426,7 +426,7 @@ static int r_core_rtr_gdb_cb(libgdbr_t *g, void *core_ptr, const char *cmd,
 			be = r_config_get_i (core->config, "cfg.bigendian");
 			if (isspace ((ut8)cmd[2])) { // dr reg
 				const char *name, *val_ptr;
-				char new_cmd[128] = { 0 };
+				char new_cmd[128] = {0};
 				int off = 0;
 				name = cmd + 3;
 				// Temporarily using new_cmd to store reg name
@@ -800,8 +800,8 @@ R_API void r_core_rtr_add(RCore *core, const char *_input) {
 				r_socket_free (fd);
 				return;
 			}
-			core->num->value = 0;
 			// eprintf ("Connected to: 'http://%s:%s'\n", host, port);
+			r_core_return_code (core, R_CMD_RC_SUCCESS);
 			free (str);
 		}
 		break;
@@ -817,32 +817,32 @@ R_API void r_core_rtr_add(RCore *core, const char *_input) {
 		break;
 	case RTR_PROTOCOL_UNIX:
 		if (!r_socket_connect_unix (fd, host)) {
-			core->num->value = 1;
+			r_core_return_code (core, R_CMD_RC_FAILURE);
 			eprintf ("Error: Cannot connect to 'unix://%s'\n", host);
 			r_socket_free (fd);
 			return;
 		}
-		core->num->value = 0;
+		r_core_return_code (core, R_CMD_RC_SUCCESS);
 		eprintf ("Connected to: 'unix://%s'\n", host);
 		break;
 	case RTR_PROTOCOL_TCP:
 		if (!r_socket_connect_tcp (fd, host, port, timeout)) { //TODO: Use rap.ssl
-			core->num->value = 1;
+			r_core_return_code (core, R_CMD_RC_FAILURE);
 			eprintf ("Error: Cannot connect to '%s' (%s)\n", host, port);
 			r_socket_free (fd);
 			return;
 		}
-		core->num->value = 0;
+		r_core_return_code (core, R_CMD_RC_SUCCESS);
 		eprintf ("Connected to: %s at port %s\n", host, port);
 		break;
 	case RTR_PROTOCOL_UDP:
 		if (!r_socket_connect_udp (fd, host, port, timeout)) { //TODO: Use rap.ssl
-			core->num->value = 1;
+			r_core_return_code (core, R_CMD_RC_FAILURE);
 			eprintf ("Error: Cannot connect to '%s' (%s)\n", host, port);
 			r_socket_free (fd);
 			return;
 		}
-		core->num->value = 0;
+		r_core_return_code (core, R_CMD_RC_SUCCESS);
 		eprintf ("Connected to: %s at port %s\n", host, port);
 		break;
 	}
@@ -862,7 +862,7 @@ R_API void r_core_rtr_add(RCore *core, const char *_input) {
 		rtr_n = i;
 		break;
 	}
-	core->num->value = ret;
+	r_core_return_code (core, ret);
 	// double free wtf is freed this here? r_socket_free(fd);
 	//r_core_rtr_list (core);
 }
@@ -914,7 +914,7 @@ R_API void r_core_rtr_event(RCore *core, const char *input) {
 		errmsg_tmpfile = strdup (f);
 		int e = mkfifo (f, 0644);
 		if (e == -1) {
-			perror ("mkfifo");
+			r_sys_perror ("mkfifo");
 		} else {
 			int ff = open (f, O_RDWR);
 			if (ff != -1) {
@@ -1026,7 +1026,7 @@ R_API void r_core_rtr_cmd(RCore *core, const char *input) {
 
 	if (!rtr_host[rtr_n].fd) {
 		eprintf ("Error: Unknown host\n");
-		core->num->value = 1; // fail
+		r_core_return_code (core, R_CMD_RC_FAILURE);
 		return;
 	}
 
@@ -1037,7 +1037,8 @@ R_API void r_core_rtr_cmd(RCore *core, const char *input) {
 			return;
 		}
 		r_socket_close (s);
-		if (!r_socket_connect (s, rh->host, sdb_fmt ("%d", rh->port), R_SOCKET_PROTO_TCP, 0)) {
+		r_strf_var (portstr, 32, "%d", rh->port);
+		if (!r_socket_connect (s, rh->host, portstr, R_SOCKET_PROTO_TCP, 0)) {
 			eprintf ("Error: Cannot connect to '%s' (%d)\n", rh->host, rh->port);
 			r_socket_free (s);
 			return;
@@ -1071,7 +1072,7 @@ R_API void r_core_rtr_cmd(RCore *core, const char *input) {
 			eprintf ("Cannot find '%s'\n", uri);
 			return;
 		}
-		core->num->value = 0;
+		r_core_return_code (core, R_CMD_RC_SUCCESS);
 		str[len] = 0;
 		r_cons_print (str);
 		free ((void *)str);
@@ -1080,7 +1081,7 @@ R_API void r_core_rtr_cmd(RCore *core, const char *input) {
 	}
 
 	if (rtr_host[rtr_n].proto == RTR_PROTOCOL_RAP) {
-		core->num->value = 0; // that's fine
+		r_core_return_code (core, R_CMD_RC_SUCCESS);
 		cmd = r_str_trim_head_ro (cmd);
 		RSocket *fh = rtr_host[rtr_n].fd;
 		if (!strlen (cmd)) {
@@ -1097,7 +1098,7 @@ R_API void r_core_rtr_cmd(RCore *core, const char *input) {
 }
 
 // TODO: support len for binary data?
-R_API char *r_core_rtr_cmds_query (RCore *core, const char *host, const char *port, const char *cmd) {
+R_API char *r_core_rtr_cmds_query(RCore *core, const char *host, const char *port, const char *cmd) {
 	RSocket *s = r_socket_new (0);
 	const int timeout = 0;
 	char *rbuf = NULL;
@@ -1329,7 +1330,7 @@ beach:
 
 #else
 
-R_API int r_core_rtr_cmds (RCore *core, const char *port) {
+R_API int r_core_rtr_cmds(RCore *core, const char *port) {
 	unsigned char buf[4097];
 	RSocket *ch = NULL;
 	int i, ret;

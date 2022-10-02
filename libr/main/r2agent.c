@@ -14,7 +14,7 @@ extern int memorystatus_control(uint32_t command, pid_t pid, uint32_t flags, voi
 #define USE_IOS_JETSAM 0
 #endif
 
-static int usage (int v) {
+static int usage(int v) {
 	printf ("Usage: r2agent [-adhs] [-p port]\n"
 	"  -a        listen for everyone (localhost by default)\n"
 	"  -d        run in daemon mode (background)\n"
@@ -158,7 +158,7 @@ R_API int r_main_r2agent(int argc, const char **argv) {
 				char *cmd;
 
 				if (!(cmd = malloc (cmd_len))) {
-					perror ("malloc");
+					r_sys_perror ("malloc");
 					return 1;
 				}
 				snprintf (cmd, cmd_len, "r2 -q %s-e http.port=%d -c=h \"%s\"",
@@ -171,7 +171,7 @@ R_API int r_main_r2agent(int argc, const char **argv) {
 				free (escaped_filename);
 				result = result_heap = malloc (1024 + escaped_len);
 				if (!result) {
-					perror ("malloc");
+					r_sys_perror ("malloc");
 					free (pfile);
 					r_list_free (so.authtokens);
 					return 1;

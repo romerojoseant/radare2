@@ -268,6 +268,9 @@ static inline void **r_pvector_push_front(RPVector *vec, void *x) {
 // sort vec using quick sort.
 R_API void r_pvector_sort(RPVector *vec, RPVectorComparator cmp);
 
+// binary search vector, must be sorted already
+R_API int r_pvector_bsearch(RPVector *vec, void *needle, RPVectorComparator cmp);
+
 static inline void **r_pvector_reserve(RPVector *vec, size_t capacity) {
 	return (void **)r_vector_reserve (&vec->v, capacity);
 }
@@ -291,10 +294,12 @@ static inline void **r_pvector_flush(RPVector *vec) {
  * }
  */
 #define r_pvector_foreach(vec, it) \
+	if ((vec)->v.len > 0) \
 	for (it = (void **)(vec)->v.a; it != (void **)(vec)->v.a + (vec)->v.len; it++)
 
 // like r_pvector_foreach() but inverse
 #define r_pvector_foreach_prev(vec, it) \
+	if ((vec)->v.len > 0) \
 	for (it = ((vec)->v.len == 0 ? NULL : (void **)(vec)->v.a + (vec)->v.len - 1); it != NULL && it != (void **)(vec)->v.a - 1; it--)
 
 /*

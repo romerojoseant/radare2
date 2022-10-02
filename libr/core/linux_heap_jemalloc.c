@@ -60,7 +60,7 @@ static GHT GH(je_get_va_symbol)(const char *path, const char *symname) {
 #else
 static GHT GH(je_get_va_symbol)(RCore *core, const char *path, const char *sym_name) {
 	GHT vaddr = GHT_MAX;
-	RBinFileOptions opt = { 0 };
+	RBinFileOptions opt = {0};
 	r_bin_file_options_init (&opt, -1, 0, 0, false);
 	RBinSymbol *s;
 	RListIter *iter;
@@ -86,7 +86,7 @@ static GHT GH(je_get_va_symbol)(RCore *core, const char *path, const char *sym_n
 #endif
 
 static int GH(je_matched)(const char *ptr, const char *str) {
-        int ret = strncmp (ptr, str, strlen (str) - 1);
+	int ret = strncmp (ptr, str, strlen (str) - 1);
 	return !ret;
 }
 #endif
@@ -134,7 +134,7 @@ static bool GH(r_resolve_jemalloc)(RCore *core, char *symname, ut64 *symbol) {
 	ut64 n = r_num_get (NULL, va);
 	if (n && n != UT64_MAX) {
 		*symbol = n;
-		eprintf ("0x%08"PFMT64x"\n", n);
+		eprintf ("0x%08"PFMT64x" 0x%08" PFMT64x"\n", n, jemalloc_addr);
 	} else {
 		eprintf ("NOT FOUND\n");
 	}
@@ -155,10 +155,10 @@ static void GH(jemalloc_get_chunks)(RCore *core, const char *input) {
 
 	switch (input[0]) {
 	case '\0':
-		eprintf ("need an arena_t to associate chunks");
+		eprintf ("need an arena_t to associate chunks\n");
 		break;
-        case ' ':
-        	{
+	case ' ':
+		{
 			GHT arena = GHT_MAX;
 			arena_t *ar = R_NEW0 (arena_t);
 			extent_node_t *node = R_NEW0 (extent_node_t), *head = R_NEW0 (extent_node_t);
@@ -191,8 +191,8 @@ static void GH(jemalloc_get_chunks)(RCore *core, const char *input) {
 			free (head);
 			free (node);
 		break;
-        	}
-        case '*':
+		}
+	case '*':
 		{
 			int i = 0;
 			ut64 sym;
@@ -511,7 +511,7 @@ static void GH(jemalloc_get_runs)(RCore *core, const char *input) {
 			}
 			free (c);
 			free (r);
-         	}
+		}
 	break;
 	}
 }

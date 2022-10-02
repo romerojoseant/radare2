@@ -180,7 +180,8 @@ int gdbr_connect(libgdbr_t *g, const char *host, int port) {
 	if (*host == '/') {
 		ret = r_socket_connect_serial (g->sock, host, port, 1);
 	} else {
-		ret = r_socket_connect_tcp (g->sock, host, sdb_fmt ("%d", port), 1);
+		r_strf_var (portstr, 32, "%d", port);
+		ret = r_socket_connect_tcp (g->sock, host, portstr, 1);
 	}
 	r_cons_sleep_end (bed);
 	r_cons_break_push (gdbr_break_process, g);
@@ -303,7 +304,7 @@ end:
 }
 
 int gdbr_select(libgdbr_t *g, int pid, int tid) {
-	char cmd[64] = { 0 };
+	char cmd[64] = {0};
 	int ret = -1;
 
 	if (!gdbr_lock_enter (g)) {
@@ -726,7 +727,7 @@ end:
 }
 
 static int gdbr_read_memory_page(libgdbr_t *g, ut64 address, ut8 *buf, int len) {
-	char command[128] = { 0 };
+	char command[128] = {0};
 	int last, ret_len, pkt;
 	ret_len = 0;
 
@@ -929,7 +930,7 @@ end:
 
 int gdbr_step(libgdbr_t *g, int tid) {
 	int ret = -1;
-	char thread_id[64] = { 0 };
+	char thread_id[64] = {0};
 
 	if (!gdbr_lock_enter (g)) {
 		goto end;
@@ -938,7 +939,8 @@ int gdbr_step(libgdbr_t *g, int tid) {
 	if (tid <= 0 || write_thread_id (thread_id, sizeof (thread_id) - 1, g->pid, tid,
 		    g->stub_features.multiprocess) < 0) {
 		send_vcont (g, "vCont?", NULL);
-		send_vcont (g, sdb_fmt ("Hc%d", tid), NULL);
+		r_strf_var (hcd, 32, "Hc%d", tid);
+		send_vcont (g, hcd, NULL);
 		ret = send_vcont (g, CMD_C_STEP, NULL);
 		goto end;
 	}
@@ -950,8 +952,8 @@ end:
 }
 
 int gdbr_continue(libgdbr_t *g, int pid, int tid, int sig) {
-	char thread_id[64] = { 0 };
-	char command[16] = { 0 };
+	char thread_id[64] = {0};
+	char command[16] = {0};
 	int ret = -1;
 
 	if (!gdbr_lock_enter (g)) {
@@ -1020,7 +1022,7 @@ end:
 
 int gdbr_write_register(libgdbr_t *g, int index, char *value, int len) {
 	int ret = -1;
-	char command[255] = { 0 };
+	char command[255] = {0};
 	if (!g || !g->stub_features.P) {
 		return -1;
 	}
@@ -1213,7 +1215,7 @@ end:
 }
 
 int send_vcont(libgdbr_t *g, const char *command, const char *thread_id) {
-	char tmp[255] = { 0 };
+	char tmp[255] = {0};
 	int ret = -1;
 	void *bed = NULL;
 
@@ -1302,7 +1304,7 @@ end:
 }
 
 int set_bp(libgdbr_t *g, ut64 address, const char *conditions, enum Breakpoint type, int sizebp) {
-	char tmp[255] = { 0 };
+	char tmp[255] = {0};
 	int ret = -1;
 
 	if (!g) {
@@ -1397,7 +1399,7 @@ int gdbr_remove_hwa(libgdbr_t *g, ut64 address, int sizebp) {
 
 
 int remove_bp(libgdbr_t *g, ut64 address, enum Breakpoint type, int sizebp) {
-	char tmp[255] = { 0 };
+	char tmp[255] = {0};
 	int ret = -1;
 
 	if (!g) {
@@ -1711,7 +1713,7 @@ bool gdbr_is_thread_dead (libgdbr_t *g, int pid, int tid) {
 	if (!gdbr_lock_enter (g)) {
 		goto end;
 	}
-	char msg[64] = { 0 }, thread_id[63] = { 0 };
+	char msg[64] = {0}, thread_id[63] = { 0 };
 	if (write_thread_id (thread_id, sizeof (thread_id) - 1, pid, tid,
 		    g->stub_features.multiprocess) < 0) {
 		goto end;

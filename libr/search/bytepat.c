@@ -35,9 +35,9 @@ static void fini_fi(fnditem* fi) {
 	free (fu);
 }
 
-static void add_fi (fnditem* n, unsigned char* blk, int patlen) {
+static void add_fi(fnditem* n, unsigned char* blk, int patlen) {
 	fnditem* p;
-	for (p = n; p->next != NULL; p = p->next) {
+	for (p = n; p->next; p = p->next) {
 		;
 	}
 	p->next = (fnditem*) malloc (sizeof (fnditem));
@@ -48,7 +48,7 @@ static void add_fi (fnditem* n, unsigned char* blk, int patlen) {
 
 static int is_fi_present(fnditem* n, unsigned char* blk , int patlen) {
 	fnditem* p;
-	for (p = n; p->next != NULL; p = p->next) {
+	for (p = n; p->next; p = p->next) {
 		if (!memcmp (blk, p->str, patlen)) {
 			return true;
 		}
@@ -56,7 +56,7 @@ static int is_fi_present(fnditem* n, unsigned char* blk , int patlen) {
 	return false;
 }
 
-R_API int r_search_pattern(RSearch *s, ut64 from, ut64 to) {
+R_IPI int search_pattern(RSearch *s, ut64 from, ut64 to) {
 	ut8 block[BSIZE+MAX_PATLEN], sblk[BSIZE+MAX_PATLEN+1];
 	ut64 addr, bact, bytes, intaddr, rb, bproc = 0;
 	int nr,i, moar=0, pcnt, cnt = 0, k = 0;

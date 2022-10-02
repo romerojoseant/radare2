@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2012-2015 - condret, pancake */
+/* radare - LGPL - Copyright 2012-2021 - condret, pancake */
 
 #include <r_types.h>
 #include <r_util.h>
@@ -7,9 +7,9 @@
 #include "../arch/snes/snesdis.c"
 #include "asm_snes.h"
 
-static struct snes_asm_flags* snesflags = NULL;
+static R_TH_LOCAL struct snes_asm_flags* snesflags = NULL;
 
-static bool snes_asm_init (void* user) {
+static bool snes_asm_init(void* user) {
 	if (!snesflags) {
 		snesflags = malloc (sizeof (struct snes_asm_flags));
 	}
@@ -17,7 +17,7 @@ static bool snes_asm_init (void* user) {
 	return 0;
 }
 
-static bool snes_asm_fini (void* user) {
+static bool snes_asm_fini(void* user) {
 	free(snesflags);
 	snesflags = NULL;
 	return 0;

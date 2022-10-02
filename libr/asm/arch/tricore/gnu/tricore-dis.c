@@ -19,21 +19,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <r_util.h>
 
 #include "ansidecl.h"
 #include "sysdep.h"
 #include "opcode/tricore.h"
 #include "disas-asm.h"
-#ifndef _MSC_VER
-#include "libiberty.h"
-#else
-#include <stdlib.h>
 #define XNEWVEC(T, N)		((T *) malloc (sizeof (T) * (N)))
 #define XCNEWVEC(T, N)		((T *) calloc ((N), sizeof (T)))
 #define XNEW(T)			((T *) malloc (sizeof (T)))
 #define xmalloc malloc
-#endif
 
 #if 0
 #define REGPREFIX "%%"
@@ -114,49 +110,49 @@ static struct decoded_insn dec_insn;
 
 /* Forward declarations of decoding functions.  */
 
-static void decode_abs PARAMS ((void));
-static void decode_absb PARAMS ((void));
-static void decode_b PARAMS ((void));
-static void decode_bit PARAMS ((void));
-static void decode_bo PARAMS ((void));
-static void decode_bol PARAMS ((void));
-static void decode_brc PARAMS ((void));
-static void decode_brn PARAMS ((void));
-static void decode_brr PARAMS ((void));
-static void decode_rc PARAMS ((void));
-static void decode_rcpw PARAMS ((void));
-static void decode_rcr PARAMS ((void));
-static void decode_rcrr PARAMS ((void));
-static void decode_rcrw PARAMS ((void));
-static void decode_rlc PARAMS ((void));
-static void decode_rr PARAMS ((void));
-static void decode_rr1 PARAMS ((void));
-static void decode_rr2 PARAMS ((void));
-static void decode_rrpw PARAMS ((void));
-static void decode_rrr PARAMS ((void));
-static void decode_rrr1 PARAMS ((void));
-static void decode_rrr2 PARAMS ((void));
-static void decode_rrrr PARAMS ((void));
-static void decode_rrrw PARAMS ((void));
-static void decode_sys PARAMS ((void));
-static void decode_sb PARAMS ((void));
-static void decode_sbc PARAMS ((void));
-static void decode_sbr PARAMS ((void));
-static void decode_sbrn PARAMS ((void));
-static void decode_sc PARAMS ((void));
-static void decode_slr PARAMS ((void));
-static void decode_slro PARAMS ((void));
-static void decode_sr PARAMS ((void));
-static void decode_src PARAMS ((void));
-static void decode_sro PARAMS ((void));
-static void decode_srr PARAMS ((void));
-static void decode_srrs PARAMS ((void));
-static void decode_ssr PARAMS ((void));
-static void decode_ssro PARAMS ((void));
+static void decode_abs PARAMS((void));
+static void decode_absb PARAMS((void));
+static void decode_b PARAMS((void));
+static void decode_bit PARAMS((void));
+static void decode_bo PARAMS((void));
+static void decode_bol PARAMS((void));
+static void decode_brc PARAMS((void));
+static void decode_brn PARAMS((void));
+static void decode_brr PARAMS((void));
+static void decode_rc PARAMS((void));
+static void decode_rcpw PARAMS((void));
+static void decode_rcr PARAMS((void));
+static void decode_rcrr PARAMS((void));
+static void decode_rcrw PARAMS((void));
+static void decode_rlc PARAMS((void));
+static void decode_rr PARAMS((void));
+static void decode_rr1 PARAMS((void));
+static void decode_rr2 PARAMS((void));
+static void decode_rrpw PARAMS((void));
+static void decode_rrr PARAMS((void));
+static void decode_rrr1 PARAMS((void));
+static void decode_rrr2 PARAMS((void));
+static void decode_rrrr PARAMS((void));
+static void decode_rrrw PARAMS((void));
+static void decode_sys PARAMS((void));
+static void decode_sb PARAMS((void));
+static void decode_sbc PARAMS((void));
+static void decode_sbr PARAMS((void));
+static void decode_sbrn PARAMS((void));
+static void decode_sc PARAMS((void));
+static void decode_slr PARAMS((void));
+static void decode_slro PARAMS((void));
+static void decode_sr PARAMS((void));
+static void decode_src PARAMS((void));
+static void decode_sro PARAMS((void));
+static void decode_srr PARAMS((void));
+static void decode_srrs PARAMS((void));
+static void decode_ssr PARAMS((void));
+static void decode_ssro PARAMS((void));
 
 /* Array of function pointers to decoding functions.  */
 
-static void (*decode[]) PARAMS ((void)) =
+static void (*decode[]) PARAMS((void)) =
 {
   /* 32-bit formats.  */
   decode_abs, decode_absb, decode_b, decode_bit, decode_bo, decode_bol,
@@ -173,13 +169,13 @@ static void (*decode[]) PARAMS ((void)) =
 
 /* More forward declarations.  */
 
-static unsigned long extract_off18 PARAMS ((void));
-static void init_hash_tables PARAMS ((void));
-static const char *find_core_reg PARAMS ((unsigned long));
-static void print_decoded_insn PARAMS ((bfd_vma, struct disassemble_info *));
-static int decode_tricore_insn PARAMS ((bfd_vma, unsigned long, int,
+static unsigned long extract_off18 PARAMS((void));
+static void init_hash_tables PARAMS((void));
+static const char *find_core_reg PARAMS((unsigned long));
+static void print_decoded_insn PARAMS((bfd_vma, struct disassemble_info *));
+static int decode_tricore_insn PARAMS((bfd_vma, unsigned long, int,
 					struct disassemble_info *));
-static int decode_pcp_insn PARAMS ((bfd_vma, bfd_byte [4],
+static int decode_pcp_insn PARAMS((bfd_vma, bfd_byte [4],
 				    struct disassemble_info *));
 
 /* Here come the decoding functions.  If you thought that the encoding
@@ -228,11 +224,9 @@ decode_absb ()
 	  case FMT_ABSB_OFF18:
 		  dec_insn.cexp[i] = extract_off18 ();
 		  break;
-
 	  case FMT_ABSB_B:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x800) >> 11;
 		  break;
-
 	  case FMT_ABSB_BPOS3:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x700) >> 8;
 		  break;
@@ -267,19 +261,15 @@ decode_bit ()
 	  case FMT_BIT_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_BIT_P2:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0f800000) >> 23;
 		  break;
-
 	  case FMT_BIT_P1:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x001f0000) >> 16;
 		  break;
-
 	  case FMT_BIT_S2:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_BIT_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -300,11 +290,9 @@ decode_bo ()
 		  o2 = (dec_insn.opcode & 0xf0000000) >> 22;
 		  dec_insn.cexp[i] = o1 | o2;
 		  break;
-
 	  case FMT_BO_S2:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_BO_S1_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -326,11 +314,9 @@ decode_bol ()
 		  o3 = (dec_insn.opcode & 0x0fc00000) >> 12;
 		  dec_insn.cexp[i] = o1 | o2 | o3;
 		  break;
-
 	  case FMT_BOL_S2:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_BOL_S1_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -348,11 +334,9 @@ decode_brc ()
 	  case FMT_BRC_DISP15:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x7fff0000) >> 16;
 		  break;
-
 	  case FMT_BRC_CONST4:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_BRC_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -370,12 +354,10 @@ decode_brn ()
 	  case FMT_BRN_DISP15:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x7fff0000) >> 16;
 		  break;
-
 	  case FMT_BRN_N:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  dec_insn.cexp[i] |= (dec_insn.opcode & 0x00000080) >> 3;
 		  break;
-
 	  case FMT_BRN_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -393,11 +375,9 @@ decode_brr ()
 	  case FMT_BRR_DISP15:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x7fff0000) >> 16;
 		  break;
-
 	  case FMT_BRR_S2:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_BRR_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -415,11 +395,9 @@ decode_rc ()
 	  case FMT_RC_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RC_CONST9:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x001ff000) >> 12;
 		  break;
-
 	  case FMT_RC_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 	  }
@@ -436,19 +414,15 @@ decode_rcpw ()
 	  case FMT_RCPW_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RCPW_P:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0f800000) >> 23;
 		  break;
-
 	  case FMT_RCPW_W:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x001f0000) >> 16;
 		  break;
-
 	  case FMT_RCPW_CONST4:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_RCPW_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -466,15 +440,12 @@ decode_rcr ()
 	  case FMT_RCR_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RCR_S3:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0f000000) >> 24;
 		  break;
-
 	  case FMT_RCR_CONST9:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x001ff000) >> 12;
 		  break;
-
 	  case FMT_RCR_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -492,15 +463,12 @@ decode_rcrr ()
 	  case FMT_RCRR_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RCRR_S3:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0f000000) >> 24;
 		  break;
-
 	  case FMT_RCRR_CONST4:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_RCRR_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -518,19 +486,15 @@ decode_rcrw ()
 	  case FMT_RCRW_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RCRW_S3:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0f000000) >> 24;
 		  break;
-
 	  case FMT_RCRW_W:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x001f0000) >> 16;
 		  break;
-
 	  case FMT_RCRW_CONST4:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_RCRW_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -548,11 +512,9 @@ decode_rlc ()
 	  case FMT_RLC_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RLC_CONST16:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x0ffff000) >> 12;
 		  break;
-
 	  case FMT_RLC_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -570,15 +532,12 @@ decode_rr ()
 	  case FMT_RR_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RR_N:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x00030000) >> 16;
 		  break;
-
 	  case FMT_RR_S2:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_RR_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -596,15 +555,12 @@ decode_rr1 ()
 	  case FMT_RR1_D:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0xf0000000) >> 28;
 		  break;
-
 	  case FMT_RR1_N:
 		  dec_insn.cexp[i] = (dec_insn.opcode & 0x00030000) >> 16;
 		  break;
-
 	  case FMT_RR1_S2:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x0000f000) >> 12;
 		  break;
-
 	  case FMT_RR1_S1:
 		  dec_insn.regs[i] = (dec_insn.opcode & 0x00000f00) >> 8;
 		  break;
@@ -1143,7 +1099,7 @@ find_core_reg (addr)
   struct sfrlist *psfr;
   int idx = addr & 0xff;
 
-  for (psfr = sfrs[idx]; psfr != NULL; psfr = psfr->next) {
+  for (psfr = sfrs[idx]; psfr; psfr = psfr->next) {
 	  if ((psfr->sfr->addr == addr) && MATCHES_ISA (psfr->sfr->isa)) {
 		  return psfr->sfr->name;
 	  }
@@ -1434,7 +1390,7 @@ print_decoded_insn (memaddr, info)
 	  abs = (dec_insn.cexp[i] << 1) + memaddr;
 	  (*info->print_address_func) (abs, info);
 	  break;
-	  
+	
 	case 'c':
 	  needs_creg = 1;
 	  /* Fall through. */
@@ -1458,7 +1414,7 @@ print_decoded_insn (memaddr, info)
 
 	case '&':
 	  dec_insn.regs[i] = 10;
-	  /* Fall through. */ 
+	  /* Fall through. */
 	case '@':
 		if (dec_insn.regs[i] == 10) {
 			DPRINT (DFILE, "[" REGPREFIX "sp]");
@@ -1524,7 +1480,7 @@ print_decoded_insn (memaddr, info)
 		break;
 
 	case 'S':
-	  DPRINT (DFILE, "["REGPREFIX"a15]"); 
+	  DPRINT (DFILE, "["REGPREFIX"a15]");
 	  need_comma = 0;
 	  break;
 	}
@@ -1556,7 +1512,7 @@ decode_tricore_insn (memaddr, insn, len32, info)
   tricore_fmt fmt;
 
   /* Try to find the instruction matching the given opcode.  */
-  for (pinsn = insns[idx]; pinsn != NULL; pinsn = pinsn->next)
+  for (pinsn = insns[idx]; pinsn; pinsn = pinsn->next)
     {
 	  if ((pinsn->code->len32 != len32) || (insn & pinsn->code->lose)) {
 		  continue;
@@ -1577,7 +1533,7 @@ decode_tricore_insn (memaddr, insn, len32, info)
     }
 
   /* Oops -- this isn't a valid TriCore insn!  Since we know that
-     MEMADDR is an even address (otherwise it already would have 
+     MEMADDR is an even address (otherwise it already would have
      been handled by print_insn_tricore below) and that TriCore
      insns can only start at even addresses, we just print the
      lower 16 bits of INSN as a .hword pseudo-opcode and return 2,
@@ -1593,9 +1549,9 @@ decode_tricore_insn (memaddr, insn, len32, info)
    actually decoded bytes (2 or 4).  */
 
 static int
-decode_pcp_insn (memaddr, buffer, info)
+decode_pcp_insn (memaddr, boffer, info)
      bfd_vma memaddr;
-     bfd_byte buffer[4];
+     bfd_byte boffer[4];
      struct disassemble_info *info;
 {
   unsigned long insn = 0, insn2 = 0, val;
@@ -1611,9 +1567,9 @@ decode_pcp_insn (memaddr, buffer, info)
 #define DFILE info->stream
 
   /* Try to find the PCP instruction matching the given opcode.  */
-  insn = bfd_getl16 (buffer);
+  insn = bfd_getl16 (boffer);
   idx = (insn >> 11) & 0x1f;
-  for (pinsn = pcpinsns[idx]; pinsn != NULL; pinsn = pinsn->next)
+  for (pinsn = pcpinsns[idx]; pinsn; pinsn = pinsn->next)
     {
 	  if (((insn & pinsn->code->opcode) != pinsn->code->opcode) || (insn & pinsn->code->lose)) {
 		  continue;
@@ -1623,12 +1579,12 @@ decode_pcp_insn (memaddr, buffer, info)
 	  pop = pinsn->code;
 	  if (pop->len32) {
 		  /* This is a 32-bit insn; try to read 2 more bytes.  */
-		  fail = (*info->read_memory_func) (memaddr + 2, &buffer[2], 2, info);
+		  fail = (*info->read_memory_func) (memaddr + 2, &boffer[2], 2, info);
 		  if (fail) {
 			  DPRINT (DFILE, ".hword 0x%04lx", insn);
 			  return 2;
 		  }
-		  insn2 = bfd_getl16 (buffer + 2);
+		  insn2 = bfd_getl16 (boffer + 2);
 	}
 
       break;
@@ -1880,12 +1836,12 @@ decode_pcp_insn (memaddr, buffer, info)
    (or possible) to decode a single instruction or a pseudo-op, i.e.
    1, 2 or 4 bytes.  */
 
-int 
+int
 print_insn_tricore (memaddr, info)
      bfd_vma memaddr;
      struct disassemble_info *info;
 {
-  bfd_byte buffer[4];
+  bfd_byte boffer[4];
   int len32 = 0, failure;
   unsigned long insn = 0;
 
@@ -1915,8 +1871,8 @@ print_insn_tricore (memaddr, info)
       initialized = 1;
     }
 
-  memset ((char *) buffer, 0, sizeof (buffer));
-  failure = (*info->read_memory_func) (memaddr, buffer, 1, info);
+  memset ((char *) boffer, 0, sizeof (boffer));
+  failure = (*info->read_memory_func) (memaddr, boffer, 1, info);
   if (failure)
     {
       (*info->memory_error_func) (failure, memaddr, info);
@@ -1924,25 +1880,25 @@ print_insn_tricore (memaddr, info)
     }
 
   /* Try to read the 2nd byte.  */
-  failure = (*info->read_memory_func) (memaddr + 1, &buffer[1], 1, info);
+  failure = (*info->read_memory_func) (memaddr + 1, &boffer[1], 1, info);
   if (failure)
     {
       /* Maybe MEMADDR isn't even and we reached the end of a section.  */
-      (*info->fprintf_func) (info->stream, ".byte 0x%02x", buffer[0]);
+      (*info->fprintf_func) (info->stream, ".byte 0x%02x", boffer[0]);
       return 1;
     }
 
   /* Check if we're disassembling .pcp{text,data} sections.  */
     if (info->section && (info->section->flags & SEC_ARCH_BIT_0)) {
-	    return decode_pcp_insn (memaddr, buffer, info);
+	    return decode_pcp_insn (memaddr, boffer, info);
     }
 
     /* Handle TriCore sections.  */
-    if (buffer[0] & 1) {
+    if (boffer[0] & 1) {
 	    /* Looks like this is a 32-bit insn; try to read 2 more bytes.  */
-	    failure = (*info->read_memory_func) (memaddr + 2, &buffer[2], 2, info);
+	    failure = (*info->read_memory_func) (memaddr + 2, &boffer[2], 2, info);
 	    if (failure) {
-		    insn = bfd_getl16 (buffer);
+		    insn = bfd_getl16 (boffer);
 		    (*info->fprintf_func) (info->stream, ".hword 0x%04lx", insn);
 		    return 2;
 	    } else {
@@ -1951,9 +1907,9 @@ print_insn_tricore (memaddr, info)
     }
 
     if (len32) {
-	    insn = bfd_getl32 (buffer);
+	    insn = bfd_getl32 (boffer);
     } else {
-	    insn = bfd_getl16 (buffer);
+	    insn = bfd_getl16 (boffer);
     }
 
     return decode_tricore_insn (memaddr, insn, len32, info);

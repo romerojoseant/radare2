@@ -5,7 +5,7 @@
 #define fset(num, shift) ((((num) & (((ut64) 1) << (shift))) == 0) ? 0 : 1)
 
 #if __i386__ || __x86_64__
-static void x86_ctrl_reg_pretty_print (RIO *io, struct r2k_control_reg ctrl) {
+static void x86_ctrl_reg_pretty_print(RIO *io, struct r2k_control_reg ctrl) {
 	io->cb_printf ("CR0: 0x%"PFMT64x"\n", (ut64) ctrl.cr0);
 	io->cb_printf (" [*] PG:    %d\n"
 		       " [*] CD:    %d\n"
@@ -64,12 +64,12 @@ static void x86_ctrl_reg_pretty_print (RIO *io, struct r2k_control_reg ctrl) {
 
 #if __x86_64__
 	io->cb_printf ("CR8: 0x%"PFMT64x"\n", (ut64) ctrl.cr8);
-	io->cb_printf (" [*] TPL:    %zu\n", ctrl.cr8 & 0xf);
+	io->cb_printf (" [*] TPL:    %u\n", (ut32)(ctrl.cr8 & 0xf));
 #endif
 }
 
 #elif __arm__
-static void arm_ctrl_reg_pretty_print (RIO *io, struct r2k_control_reg ctrl) {
+static void arm_ctrl_reg_pretty_print(RIO *io, struct r2k_control_reg ctrl) {
 	io->cb_printf ("TTBR0: 0x%"PFMT64x"\n", (ut64) ctrl.ttbr0);
 	io->cb_printf (" [*] Translation table base 0:  0x%"PFMT64x"\n"
 		       " [*] UNP/SBZ:                   0x%"PFMT64x"\n"
@@ -133,7 +133,7 @@ static void arm_ctrl_reg_pretty_print (RIO *io, struct r2k_control_reg ctrl) {
 
 #elif __arm64__ || __aarch64__
 /*ARM Cortex-A57 and ARM Cortex-A72. This might show some wrong values for other processor.*/
-static void arm64_ctrl_reg_pretty_print (RIO *io, struct r2k_control_reg ctrl) {
+static void arm64_ctrl_reg_pretty_print(RIO *io, struct r2k_control_reg ctrl) {
 	io->cb_printf ("SCTLR_EL1: 0x%"PFMTSZx"\n", ctrl.sctlr_el1);
 	io->cb_printf (" [*] UCI:     %d\n"
 		       " [*] EE:      %d\n"
@@ -200,7 +200,7 @@ static void arm64_ctrl_reg_pretty_print (RIO *io, struct r2k_control_reg ctrl) {
 }
 #endif
 
-static const char* getargpos (const char *buf, int pos) {
+static const char* getargpos(const char *buf, int pos) {
 	int i;
 	for (i = 0; buf && i < pos; i++) {
 		buf = strchr (buf, ' ');
@@ -212,7 +212,7 @@ static const char* getargpos (const char *buf, int pos) {
 	return buf;
 }
 
-static size_t getvalue (const char *buf, int pos) {
+static size_t getvalue(const char *buf, int pos) {
 	size_t ret;
 	buf = getargpos (buf, pos);
 	if (buf) {
@@ -428,10 +428,10 @@ int run_old_command(RIO *io, RIODesc *iodesc, const char *buf) {
 			cmd = (char *) malloc (27);
 			if (!cmd) {
 				io->cb_printf ("io_r2k_linux : Malloc failed. Seeking to 0x0\n");
-				io->corebind.cmd (io->corebind.core, "s 0");
+				io->coreb.cmd (io->coreb.core, "s 0");
 			} else {
 				sprintf (cmd, "s 0x%"PFMT64x, io->off);
-				io->corebind.cmd (io->corebind.core, cmd);
+				io->coreb.cmd (io->coreb.core, cmd);
 				free (cmd);
 			}
 		}
@@ -760,14 +760,13 @@ int run_old_command(RIO *io, RIODesc *iodesc, const char *buf) {
 					io->cb_printf ("  %s\n", (char*)&(proc_data.vmareastruct[i + 7]));
 					i = nextstart;
 				}
-				io->cb_printf ("STACK BASE ADDRESS = 0x%zx\n", proc_data.stack);
+				io->cb_printf ("STACK BASE ADDRESS = 0x%p\n", (void*)proc_data.stack);
 			}
 		}
 		break;
 	default:
-		{
-			print_help (io, NULL, 1);
-		}
+		print_help (io, NULL, 1);
+		break;
 	}
  end:
 	free (databuf);

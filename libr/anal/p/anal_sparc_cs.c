@@ -2,8 +2,8 @@
 
 #include <r_anal.h>
 #include <r_lib.h>
-#include <capstone.h>
-#include <sparc.h>
+#include <capstone/capstone.h>
+#include <capstone/sparc.h>
 
 #if CS_API_MAJOR < 2
 #error Old Capstone not supported
@@ -101,14 +101,15 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 	static csh handle = 0;
 	static int omode;
 	cs_insn *insn;
-	int mode, n, ret;
+	int n, ret;
 
-	if (!a->big_endian) {
+	if (!a->config->big_endian) {
 		return -1;
 	}
 
-	mode = CS_MODE_LITTLE_ENDIAN;
-	if (!strcmp (a->cpu, "v9")) {
+	int mode = CS_MODE_LITTLE_ENDIAN;
+	const char *cpu = a->config->cpu;
+	if (cpu && !strcmp (cpu, "v9")) {
 		mode |= CS_MODE_V9;
 	}
 	if (mode != omode) {

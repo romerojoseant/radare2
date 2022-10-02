@@ -185,7 +185,7 @@ RCFValueDict *r_cf_value_dict_parse (RBuffer *file_buf, ut64 offset, ut64 size, 
 
 			if (next_state->phase == R_CF_STATE_IN_DICT && state->phase == R_CF_STATE_IN_KEY) {
 				if (!content) {
-					eprintf ("NULL key not supported");
+					eprintf ("NULL key not supported\n");
 					goto beach;
 				}
 				next_state->key = content;
@@ -485,7 +485,7 @@ static void r_cf_value_integer_free(RCFValueInteger *integer) {
 }
 
 static void r_cf_value_integer_print(RCFValueInteger *integer) {
-	printf ("%llu", integer->value);
+	printf ("%"PFMT64u, integer->value);
 }
 
 static RCFValueData *r_cf_value_data_new(char *string) {

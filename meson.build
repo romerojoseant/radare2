@@ -1,4 +1,4 @@
-project('radare2', 'c', license : 'LGPL3', meson_version : '>=0.49', version : '5.4.3')
+project('radare2', 'c', license : 'LGPL3', meson_version : '>=0.49', version : '5.6.9')
 
 py3_exe = import('python').find_installation('python3')
 git_exe = find_program('git', required: false)
@@ -72,7 +72,12 @@ endif
 if host_machine.system() == 'windows'
   r2birth = run_command('cmd', '/c', 'echo %date%__%time%')
 else
-  r2birth = run_command('date', '+%Y-%m-%d__%H:%M:%S')
+  r2birth = run_command('sh', '-c', '''
+      SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-`date +%s`}";
+      FORMAT="+%Y-%m-%d__%H:%M:%S";
+      date -u -d @"$SOURCE_DATE_EPOCH" "$FORMAT" 2>/dev/null ||
+      date -u -r  "$SOURCE_DATE_EPOCH" "$FORMAT" 2>/dev/null ||
+      date -u "$FORMAT"''')
 endif
 if r2birth.returncode() != 0
   r2birth = ''
@@ -109,6 +114,15 @@ if get_option('static_runtime')
   endif
 endif
 
+if get_option('wasan')
+  add_project_arguments('/DEBUG', language: 'c')
+  add_project_arguments('/MD', language: 'c')
+  add_project_arguments('/fsanitize=address', language: 'c')
+  # add_project_arguments('/Zi', language: 'c') # generate .pdb iirc
+  # add_project_arguments('/Z7', language: 'c') # generate .symbols instead of .pdb
+  # add_project_arguments('/guard:cf', language: 'c')
+endif
+
 if cc.get_id() == 'clang-cl'
   add_project_arguments('-D__STDC__=1', language: 'c')
   add_project_arguments('-D_CRT_DECLARE_NONSTDC_NAMES ', language: 'c')
@@ -117,7 +131,7 @@ if cc.get_id() == 'clang-cl'
 endif
 
 if get_option('default_library') == 'shared'
-  if host_machine.system() != 'windows' or cc.get_id()!='msvc' and cc.get_id()!='clang-cl'
+  if host_machine.system() != 'windows' or cc.get_id() != 'msvc' and cc.get_id() != 'clang-cl'
     add_project_arguments('-fvisibility=hidden', language: 'c')
   endif
 endif
@@ -127,7 +141,7 @@ library_cflags = ['-DR2_PLUGIN_INCORE=1']
 if host_machine.system() == 'windows'
   r2_prefix = '.'
   r2_libdir = 'lib'
-  r2_incdir = join_paths('include', 'libr')
+  r2_incdir = 'include/libr'
   r2_datdir = 'share'
 
   opts1 = [
@@ -380,7 +394,7 @@ r_userconf_h = configure_file(
   input: 'libr/include/r_userconf.h.acr',
   output: 'r_userconf.h',
   configuration: userconf,
-  install_dir: join_paths(r2_incdir)
+  install_dir: r2_incdir
 )
 
 versionconf = configuration_data()
@@ -398,7 +412,7 @@ r_version_h = configure_file(
   input: 'libr/include/r_version.h.in',
   output: 'r_version.h',
   configuration: versionconf,
-  install_dir: join_paths(r2_incdir)
+  install_dir: r2_incdir
 )
 
 # Copy missing header
@@ -415,43 +429,7 @@ libr_pc = configure_file(
   install_dir: join_paths(get_option('libdir'), 'pkgconfig')
 )
 
-# handle zlib dependency
-zlib_dep = dependency('zlib', required: false)
-if not zlib_dep.found() or not get_option('use_sys_zlib')
-  message('Use bundled zlib')
-
-  zlib_files = [
-    'shlr/zip/zlib/adler32.c',
-    'shlr/zip/zlib/compress.c',
-    'shlr/zip/zlib/crc32.c',
-    'shlr/zip/zlib/deflate.c',
-    'shlr/zip/zlib/gzclose.c',
-    'shlr/zip/zlib/gzlib.c',
-    'shlr/zip/zlib/gzread.c',
-    'shlr/zip/zlib/gzwrite.c',
-    'shlr/zip/zlib/infback.c',
-    'shlr/zip/zlib/inffast.c',
-    'shlr/zip/zlib/inflate.c',
-    'shlr/zip/zlib/inftrees.c',
-    'shlr/zip/zlib/trees.c',
-    'shlr/zip/zlib/uncompr.c',
-    'shlr/zip/zlib/zutil.c'
-  ]
-
-  zlib_inc = [platform_inc, include_directories('shlr/zip/zlib')]
-
-  libr2zlib = static_library('r2zlib', zlib_files,
-    include_directories: zlib_inc,
-    implicit_include_directories: false
-  )
-
-  zlib_dep = declare_dependency(
-    link_with: libr2zlib,
-    include_directories: zlib_inc
-  )
-else
-  message('Use system-provided zlib library')
-endif
+subdir('shlr/zip')
 
 
 # handle sdb dependency
@@ -486,10 +464,10 @@ sdb_files = [
   'shlr/sdb/src/text.c'
 ]
 
-sdb_inc = [platform_inc, include_directories('shlr/sdb/src')]
+sdb_inc = [platform_inc, include_directories(join_paths('shlr','sdb','src'))]
 
 # Create sdb_version.h
-r = run_command(py3_exe, 'sys/sdb_version.py', 'shlr/sdb/config.mk')
+r = run_command(py3_exe, join_paths('sys','sdb_version.py'), join_paths('shlr','sdb','config.mk'))
 if r.returncode() == 0
   sdb_version = r.stdout().strip().split('\n')[0]
 else
@@ -530,7 +508,7 @@ sdb_dep = declare_dependency(
 
 sdb_exe = executable('sdb', ['shlr/sdb/src/main.c'] + sdb_files,
   include_directories: [
-    include_directories(['shlr/sdb/src'])
+    include_directories('shlr/sdb/src')
   ],
   implicit_include_directories: false,
   native: true,
@@ -557,7 +535,7 @@ spp_files = [
   'shlr/spp/spp.c'
 ]
 
-spp_inc = [platform_inc, include_directories('shlr/spp')]
+spp_inc = [platform_inc, include_directories(join_paths('shlr','spp'))]
 
 libr2spp = static_library('r2spp', spp_files,
   dependencies: sdb_dep,
@@ -578,6 +556,9 @@ endif
 if get_option('b_sanitize').contains('undefined')
   pkgcfg_sanitize_libs += ' -lubsan'
 endif
+if get_option('b_sanitize').contains('thread')
+  pkgcfg_sanitize_libs += ' -fsanitize=thread'
+endif
 
 rpath_exe = ''
 rpath_lib = ''
@@ -586,12 +567,12 @@ if get_option('local') and get_option('default_library') == 'shared'
   rpath_lib = '$ORIGIN'
 endif
 
+subdir('shlr/lz4')
 subdir('libr/util')
 subdir('libr/socket')
 subdir('libr/hash')
 subdir('libr/crypto')
 subdir('shlr')
-
 subdir('libr/cons')
 subdir('shlr/gdb')
 subdir('libr/io')
@@ -611,43 +592,12 @@ subdir('libr/egg')
 subdir('libr/fs')
 subdir('libr/debug')
 subdir('libr/core')
-
-# subdir('libr/anal/d')
-# subdir('libr/asm/d')
-subdir('libr/bin/d')
-# subdir('libr/syscall/d')
 subdir('libr/cons/d')
 subdir('libr/magic/d')
 subdir('libr/flag/d')
 subdir('libr/main')
 
-cli_option = get_option('cli')
-if cli_option.auto()
-  cli_enabled = not meson.is_subproject()
-else
-  cli_enabled = cli_option.enabled()
-endif
-if cli_enabled
-  if get_option('blob')
-    subdir('binr/blob')
-  else
-    subdir('binr/rahash2')
-    subdir('binr/rarun2')
-    subdir('binr/rasm2')
-    subdir('binr/rabin2')
-    subdir('binr/radare2')
-    subdir('binr/ragg2')
-    subdir('binr/r2agent')
-    subdir('binr/radiff2')
-    subdir('binr/rafind2')
-    subdir('binr/rasign2')
-    subdir('binr/ravc2')
-    subdir('binr/rax2')
-  endif
-  subdir('binr/r2pm')
-  subdir('binr/r2r')
-endif
-
+subdir('binr')
 if meson.is_subproject()
   libr2_dep = declare_dependency(
     dependencies: [

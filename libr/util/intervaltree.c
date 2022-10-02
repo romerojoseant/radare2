@@ -102,10 +102,12 @@ R_API void r_interval_tree_init(RIntervalTree *tree, RIntervalNodeFree free) {
 	tree->free = free;
 }
 
+typedef void (*ITVTreeFree)(void *);
+
 static void interval_node_free(RBNode *node, void *user) {
 	RIntervalNode *ragenode /* >:-O */ = unwrap (node);
 	if (user) {
-		((RContRBFree)user) (ragenode->data);
+		((ITVTreeFree)user) (ragenode->data);
 	}
 	free (ragenode);
 }
@@ -137,7 +139,7 @@ R_API bool r_interval_tree_insert(RIntervalTree *tree, ut64 start, ut64 end, voi
 
 R_API bool r_interval_tree_delete(RIntervalTree *tree, RIntervalNode *node, bool free) {
 	RBNode *root = &tree->root->node;
-	RBIter path_cache = { 0 };
+	RBIter path_cache = {0};
 	bool r = r_rbtree_aug_delete (&root, node, cmp_exact_node, &path_cache, interval_node_free, free ? tree->free : NULL, node_max);
 	tree->root = root ? unwrap (root) : NULL;
 	return r;
@@ -156,7 +158,7 @@ R_API bool r_interval_tree_resize(RIntervalTree *tree, RIntervalNode *node, ut64
 	if (node->end != new_end) {
 		// Only end change just needs the updated augmented max value to be propagated upwards
 		node->end = new_end;
-		RBIter path_cache = { 0 };
+		RBIter path_cache = {0};
 		return r_rbtree_aug_update_sum (&tree->root->node, node, &node->node, cmp_exact_node, &path_cache, node_max);
 	}
 	// no change
@@ -166,6 +168,7 @@ R_API bool r_interval_tree_resize(RIntervalTree *tree, RIntervalNode *node, ut64
 // This must always return the topmost node that matches start!
 // Otherwise r_interval_tree_first_at will break!!!
 R_API RIntervalNode *r_interval_tree_node_at(RIntervalTree *tree, ut64 start) {
+	r_return_val_if_fail (tree, NULL);
 	RIntervalNode *node = tree->root;
 	while (node) {
 		if (start < node->start) {
@@ -180,7 +183,7 @@ R_API RIntervalNode *r_interval_tree_node_at(RIntervalTree *tree, ut64 start) {
 }
 
 R_API RBIter r_interval_tree_first_at(RIntervalTree *tree, ut64 start) {
-	RBIter it = { 0 };
+	RBIter it = {0};
 
 	// Find the topmost node matching start so we have a sub-tree with all entries that we want to find.
 	RIntervalNode *top_intervalnode = r_interval_tree_node_at (tree, start);

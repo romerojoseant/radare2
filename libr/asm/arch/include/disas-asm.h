@@ -39,7 +39,7 @@ extern "C" {
 #define bfd_malloc malloc
 #define xmalloc malloc
 
-  typedef int (*fprintf_ftype) (void *, const char*, ...) ATTRIBUTE_FPTR_PRINTF_2;
+typedef int (*fprintf_ftype) (void *, const char*, ...) ATTRIBUTE_FPTR_PRINTF_2;
 
 enum dis_insn_type
 {
@@ -336,6 +336,7 @@ extern int print_insn_rl78		(bfd_vma, disassemble_info *);
 extern int print_insn_rl78_g10		(bfd_vma, disassemble_info *);
 extern int print_insn_rl78_g13		(bfd_vma, disassemble_info *);
 extern int print_insn_rl78_g14		(bfd_vma, disassemble_info *);
+extern int print_insn_loongarch		(bfd_vma, disassemble_info *);
 
 extern disassembler_ftype arc_get_disassembler (bfd *);
 extern disassembler_ftype cris_get_disassembler (bfd *);
@@ -455,10 +456,6 @@ static void generic_print_address_func(bfd_vma address, struct disassemble_info 
 
 #ifdef __cplusplus
 }
-#endif
-
-#ifdef _MSC_VER
-#undef xmalloc
 #endif
 
 #endif /* ! defined (DIS_ASM_H) */

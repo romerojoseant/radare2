@@ -71,7 +71,7 @@ static P##IFace IFace##_impl_new(                     \
 }
 
 #define DECLARE_QUERYINTERFACE(IFace, IFaceIID)       \
-static STDMETHODIMP IFace##_QueryInterface_impl (     \
+static STDMETHODIMP IFace##_QueryInterface_impl(     \
 	P##IFace This,                                    \
 	_In_ REFIID InterfaceId,                          \
 	_Out_ PVOID *Interface) {                         \
@@ -340,9 +340,9 @@ fail:
 	return NULL;
 }
 
-static int windbg_init(void) {
+static bool windbg_init(void) {
 	if (w32_DebugCreate && w32_DebugConnectWide) {
-		return 1;
+		return true;
 	}
 	char *ext_path = r_sys_getenv ("_NT_DEBUGGER_EXTENSION_PATH");
 	HANDLE h = NULL;
@@ -362,22 +362,21 @@ static int windbg_init(void) {
 	}
 	if (!h) {
 		r_sys_perror ("LoadLibrary (\"dbgeng.dll\")");
-		return 0;
+		return false;
 	}
 
 	w32_DebugCreate = (DebugCreate_t)GetProcAddress (h, "DebugCreate");
 	if (!w32_DebugCreate) {
 		r_sys_perror ("GetProcAddress (\"DebugCreate\")");
-		return 0;
+		return false;
 	}
 
 	w32_DebugConnectWide = (DebugConnectWide_t)GetProcAddress (h, "DebugConnectWide");
 	if (!w32_DebugConnectWide) {
 		r_sys_perror ("GetProcAddress (\"DebugConnectWide\")");
-		return 0;
+		return false;
 	}
-
-	return 1;
+	return true;
 }
 
 static bool windbg_check(RIO *io, const char *uri, bool many) {
@@ -401,7 +400,7 @@ static RIODesc *windbg_open(RIO *io, const char *uri, int perm, int mode) {
 	}
 	HRESULT hr = E_FAIL;
 	RIODesc *fd = NULL;
-	RCore *core = io->corebind.core;
+	RCore *core = io->coreb.core;
 	DbgEngContext *idbg = NULL;
 	const char *args = uri + strlen (WINDBGURI);
 	if (r_str_startswith (args, "-remote")) {
@@ -514,8 +513,8 @@ static RIODesc *windbg_open(RIO *io, const char *uri, int perm, int mode) {
 		}
 	}
 	if (!symbol_path_set) {
-		const char *store = io->corebind.cfgGet (core, "pdb.symstore");
-		const char *server = io->corebind.cfgGet (core, "pdb.server");
+		const char *store = io->coreb.cfgGet (core, "pdb.symstore");
+		const char *server = io->coreb.cfgGet (core, "pdb.server");
 		char *s = strdup (server);
 		r_str_replace_ch (s, ';', '*', true);
 		char *sympath = r_str_newf ("cache*;srv*%s*%s", store, s);
@@ -569,13 +568,13 @@ remote_client:
 	fd = r_io_desc_new (io, &r_io_plugin_windbg, uri, perm | R_PERM_X, mode, idbg);
 	fd->name = strdup (args);
 	core->dbg->user = idbg;
-	io->corebind.cmd (io->corebind.core, "dL windbg");
+	io->coreb.cmd (io->coreb.core, "dL windbg");
 	return fd;
 }
 
 static bool windbg_close(RIODesc *fd) {
 	DbgEngContext *idbg = fd->data;
-	RCore *core = fd->io->corebind.core;
+	RCore *core = fd->io->coreb.core;
 	if (idbg->server) {
 		ITHISCALL (dbgClient, EndSession, DEBUG_END_DISCONNECT);
 		ITHISCALL (dbgClient, DisconnectProcessServer, idbg->server);

@@ -51,18 +51,18 @@ static int perform_mapped_file_yank(RCore *core, ut64 offset, ut64 len, const ch
 			yank_file_sz = r_io_size (core->io);
 			ut64 addr = 0;
 			r_io_map_locate (core->io, &addr, yank_file_sz, load_align);
-        		map = r_io_map_new (core->io, yankdesc->fd, R_PERM_R, 0, addr, yank_file_sz);
+			map = r_io_map_add (core->io, yankdesc->fd, R_PERM_R, 0, addr, yank_file_sz);
 			loadaddr = map? r_io_map_begin (map): -1;
 			if (yankdesc && map && loadaddr != -1) {
 				// ***NOTE*** this is important, we need to
 				// address the file at its physical address!
 				addr += loadaddr;
 			} else if (yankdesc) {
-				eprintf ("Unable to map the opened file: %s", filename);
+				eprintf ("Unable to map the opened file: %s\n", filename);
 				r_io_desc_close (yankdesc);
 				yankdesc = NULL;
 			} else {
-				eprintf ("Unable to open the file: %s", filename);
+				eprintf ("Unable to open the file: %s\n", filename);
 			}
 		}
 	}

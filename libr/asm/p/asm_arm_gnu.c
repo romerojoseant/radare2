@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2009-2017 - pancake */
+/* radare - LGPL - Copyright 2009-2022 - pancake */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -70,8 +70,7 @@ static unsigned long Offset = 0;
 static RStrBuf *buf_global = NULL;
 static unsigned char bytes[8];
 
-static int arm_buffer_read_memory(bfd_vma memaddr, bfd_byte *myaddr,
-                                  unsigned int length, struct disassemble_info *info) {
+static int arm_buffer_read_memory(bfd_vma memaddr, bfd_byte *myaddr, unsigned int length, struct disassemble_info *info) {
 	int delta = (memaddr - Offset);
 	if (delta < 0) {
 		return -1;      // disable backward reads
@@ -95,18 +94,19 @@ DECLARE_GENERIC_PRINT_ADDRESS_FUNC()
 DECLARE_GENERIC_FPRINTF_FUNC()
 
 static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
+	const int bits = a->config->bits;
 	static char *oldcpu = NULL;
 	static int oldcpucode = 0;
 	int opsize;
 	struct disassemble_info obj;
-	char *options = (a->bits == 16)? "force-thumb": "no-force-thumb";
+	char *options = (bits == 16)? "force-thumb": "no-force-thumb";
 
 	if (len < 2) {
 		return -1;
 	}
 	memset (bytes, 0, sizeof (bytes));
 	memcpy (bytes, buf, R_MIN (len, 4));
-	if (a->bits < 64 && len < (a->bits / 8)) {
+	if (bits < 64 && len < (bits / 8)) {
 		return -1;
 	}
 	buf_global = &op->buf_asm;
@@ -114,7 +114,7 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 
 	/* prepare disassembler */
 	memset (&obj, '\0', sizeof (struct disassemble_info));
-	arm_mode = a->bits;
+	arm_mode = bits;
 #if 0
 typedef struct {
   unsigned long core[2];
@@ -150,19 +150,21 @@ cpucode = 66471;
 	};
 
 	/* select cpu */
-	if (oldcpu != a->cpu) {
+	// XXX oldcpu leaks
+	char *cpu = a->config->cpu;
+	if (oldcpu != cpu) {
 		int cpucode = 0;
-		if (a->cpu) {
+		if (cpu) {
  			int i;
-			cpucode = atoi (a->cpu);
+			cpucode = atoi (cpu);
 			for (i = 0; i < (sizeof(arm_cpucodes) / sizeof(arm_cpucodes[0])); i++) {
-				if (!strcmp (arm_cpucodes[i].name, a->cpu)) {
+				if (!strcmp (arm_cpucodes[i].name, cpu)) {
 					cpucode = arm_cpucodes[i].cpucode;
 					break;
 				}
 			}
 		}
-		oldcpu = a->cpu;
+		oldcpu = cpu;
 		oldcpucode = cpucode;
 	}
 
@@ -177,22 +179,22 @@ cpucode = 66471;
 	obj.symbol_at_address_func = &symbol_at_address;
 	obj.memory_error_func = &memory_error_func;
 	obj.print_address_func = &generic_print_address_func;
-	obj.endian = !a->big_endian;
+	obj.endian = !a->config->big_endian;
 	obj.fprintf_func = &generic_fprintf_func;
 	obj.stream = stdout;
 	obj.bytes_per_chunk =
-		obj.bytes_per_line = (a->bits / 8);
+		obj.bytes_per_line = (bits / 8);
 
 	r_strbuf_set (&op->buf_asm, "");
-	if (a->bits == 64) {
+	if (bits == 64) {
 		obj.disassembler_options = NULL;
 		memcpy (bytes, buf, 4);
 		op->size = print_insn_aarch64 ((bfd_vma) Offset, &obj);
 	} else {
 		obj.disassembler_options = options;
-		op->size = (obj.endian == BFD_ENDIAN_LITTLE)?
-		           print_insn_little_arm ((bfd_vma) Offset, &obj):
-		           print_insn_big_arm ((bfd_vma) Offset, &obj);
+		op->size = (obj.endian == BFD_ENDIAN_LITTLE)
+			? print_insn_little_arm ((bfd_vma) Offset, &obj)
+			: print_insn_big_arm ((bfd_vma) Offset, &obj);
 	}
 	opsize = op->size;
 	if (op->size == -1) {
@@ -212,7 +214,7 @@ RAsmPlugin r_asm_plugin_arm_gnu = {
 	.cpus = "v2,v2a,v3M,v4,v5,v5t,v5te,v5j,XScale,ep9312,iWMMXt,iWMMXt2",
 	.bits = 16 | 32 | 64,
 	.endian = R_SYS_ENDIAN_LITTLE | R_SYS_ENDIAN_BIG,
-	.desc = "Acorn RISC Machine CPU",
+	.desc = "GNU Disassembler for ARM, Thumb and Aarch64",
 	.disassemble = &disassemble,
 	.license = "GPL3"
 };

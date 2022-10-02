@@ -1,5 +1,5 @@
 /*
-  Based on commits 250d07de5cf6efc81ed934c25292beb63c7e3129 from master branch 
+  Based on commits 250d07de5cf6efc81ed934c25292beb63c7e3129 from master branch
   of binutils-gdb.
 */
 /* micromips-opc.c.  microMIPS opcode table.
@@ -27,7 +27,7 @@
 #include "opcode/mips.h"
 #include "mips-formats.h"
 
-static unsigned char reg_0_map[] = { 0 };
+static unsigned char reg_0_map[] = {0};
 static unsigned char reg_28_map[] = { 28 };
 static unsigned char reg_29_map[] = { 29 };
 static unsigned char reg_31_map[] = { 31 };

@@ -150,7 +150,8 @@ EXPECT=<<EOF
     "xrefs": [
       {
         "addr": 17,
-        "type": "CODE"
+        "type": "CODE",
+        "perm": "--x"
       }
     ]
   },
@@ -191,7 +192,8 @@ EXPECT=<<EOF
     "xrefs": [
       {
         "addr": 10,
-        "type": "CODE"
+        "type": "CODE",
+        "perm": "--x"
       }
     ]
   },
@@ -215,7 +217,8 @@ EXPECT=<<EOF
     "refs": [
       {
         "addr": 44,
-        "type": "DATA"
+        "type": "DATA",
+        "perm": "r--"
       }
     ]
   },
@@ -238,7 +241,8 @@ EXPECT=<<EOF
     "refs": [
       {
         "addr": 3,
-        "type": "CODE"
+        "type": "CODE",
+        "perm": "--x"
       }
     ]
   }
@@ -303,7 +307,8 @@ EXPECT=<<EOF
     "refs": [
       {
         "addr": 9,
-        "type": "CODE"
+        "type": "CODE",
+        "perm": "--x"
       }
     ]
   },
@@ -327,7 +332,8 @@ EXPECT=<<EOF
     "refs": [
       {
         "addr": 44,
-        "type": "DATA"
+        "type": "DATA",
+        "perm": "r--"
       }
     ]
   },
@@ -350,7 +356,8 @@ EXPECT=<<EOF
     "refs": [
       {
         "addr": 3,
-        "type": "CODE"
+        "type": "CODE",
+        "perm": "--x"
       }
     ]
   }
@@ -400,7 +407,8 @@ EXPECT=<<EOF
       "xrefs": [
         {
           "addr": 17,
-          "type": "CODE"
+          "type": "CODE",
+          "perm": "--x"
         }
       ]
     },
@@ -441,7 +449,8 @@ EXPECT=<<EOF
       "refs": [
         {
           "addr": 9,
-          "type": "CODE"
+          "type": "CODE",
+          "perm": "--x"
         }
       ]
     },
@@ -464,7 +473,8 @@ EXPECT=<<EOF
       "xrefs": [
         {
           "addr": 10,
-          "type": "CODE"
+          "type": "CODE",
+          "perm": "--x"
         }
       ]
     },
@@ -488,7 +498,8 @@ EXPECT=<<EOF
       "refs": [
         {
           "addr": 44,
-          "type": "DATA"
+          "type": "DATA",
+          "perm": "r--"
         }
       ]
     },
@@ -511,7 +522,8 @@ EXPECT=<<EOF
       "refs": [
         {
           "addr": 3,
-          "type": "CODE"
+          "type": "CODE",
+          "perm": "--x"
         }
       ]
     }
@@ -643,7 +655,7 @@ EXPECT=<<EOF
             [36m;-- sym.real:[0m
             [32m0x00560e95[0m  ~   [37mba[37m0f[33m31[37me9[37m14[0m     [37mmov[36m edx[0m,[36m[36m [33m0x14e9310f[0m[0m[0m
 [36m|[0m           [36m;-- sym.dummy:[0m
-[36m|[0m           [32m0x00560e97[0m      [33m31[37me9[0m           [36mxor[36m ecx[0m,[36m[36m ebp[0m[0m[0m
-[36m|[0m           [32m0x00560e99[0m      [37m14[32m00[0m           [33madc[36m al[0m,[36m[36m [36m0[0m[0m[0m
+[36m|[0m           [32m0x00560e97[0m      [33m31[37me9[0m           [33mxor[36m ecx[0m,[36m ebp[0m[0m[0m
+[36m|[0m           [32m0x00560e99[0m      [37m14[32m00[0m           [33madc[36m al[0m,[36m [36m0[0m[0m[0m
 EOF
 RUN

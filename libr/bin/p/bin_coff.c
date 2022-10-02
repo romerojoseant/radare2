@@ -27,7 +27,7 @@ static bool r_coff_is_stripped(struct r_bin_coff_obj *obj) {
 
 static bool load_buffer(RBinFile *bf, void **bin_obj, RBuffer *buf, ut64 loadaddr, Sdb *sdb) {
 	*bin_obj = r_bin_coff_new_buf (buf, bf->rbin->verbose);
-	return *bin_obj != NULL;
+	return *bin_obj;
 }
 
 static void destroy(RBinFile *bf) {
@@ -113,7 +113,10 @@ static bool _fill_bin_symbol(RBin *rbin, struct r_bin_coff_obj *bin, int idx, RB
 		}
 		break;
 	default:
-		ptr->type = r_str_constpool_get (&rbin->constpool, sdb_fmt ("%i", s->n_sclass));
+		{
+			r_strf_var (ivar, 32, "%i", s->n_sclass);
+			ptr->type = r_str_constpool_get (&rbin->constpool, ivar);
+		}
 		break;
 	}
 	ptr->size = 4;
@@ -186,7 +189,7 @@ static RList *sections(RBinFile *bf) {
 				free (tmp);
 				return ret;
 			}
-			ptr->name = r_str_newf ("%s-%zu", tmp, i);
+			ptr->name = r_str_newf ("%s-%u", tmp, (unsigned int)i);
 			free (tmp);
 			if (strstr (ptr->name, "data")) {
 				ptr->is_data = true;
@@ -267,7 +270,7 @@ static RList *libs(RBinFile *bf) {
 }
 
 static ut32 _read_le32(RBin *rbin, ut64 addr) {
-	ut8 data[4] = { 0 };
+	ut8 data[4] = {0};
 	if (!rbin->iob.read_at (rbin->iob.io, addr, data, sizeof (data))) {
 		return UT32_MAX;
 	}
@@ -275,7 +278,7 @@ static ut32 _read_le32(RBin *rbin, ut64 addr) {
 }
 
 static ut16 _read_le16(RBin *rbin, ut64 addr) {
-	ut8 data[2] = { 0 };
+	ut8 data[2] = {0};
 	if (!rbin->iob.read_at (rbin->iob.io, addr, data, sizeof (data))) {
 		return UT16_MAX;
 	}
@@ -487,10 +490,12 @@ static RList *patch_relocs(RBin *b) {
 	}
 	ut64 m_vaddr = UT64_MAX;
 	if (nimports) {
-		void **it;
 		ut64 offset = 0;
-		r_pvector_foreach (&io->maps, it) {
-			RIOMap *map = *it;
+		RIOBank *bank = b->iob.bank_get (io, io->bank);
+		RListIter *iter;
+		RIOMapRef *mapref;
+		r_list_foreach (bank->maprefs, iter, mapref) {
+			RIOMap *map = b->iob.map_get (io, mapref->id);
 			if (r_io_map_end (map) > offset) {
 				offset = r_io_map_end (map);
 			}
@@ -544,6 +549,14 @@ static RBinInfo *info(RBinFile *bf) {
 	}
 
 	switch (obj->hdr.f_magic) {
+	case COFF_FILE_MACHINE_R4000:
+ 	case COFF_FILE_MACHINE_MIPS16:
+ 	case COFF_FILE_MACHINE_MIPSFPU:
+ 	case COFF_FILE_MACHINE_MIPSFPU16:
+ 		ret->machine = strdup ("mips");
+ 		ret->arch = strdup ("mips");
+ 		ret->bits = 32;
+ 		break;
 	case COFF_FILE_MACHINE_I386:
 		ret->machine = strdup ("i386");
 		ret->arch = strdup ("x86");
@@ -554,6 +567,11 @@ static RBinInfo *info(RBinFile *bf) {
 		ret->arch = strdup ("arm");
 		ret->bits = 64;
 		break;
+	case COFF_FILE_MACHINE_THUMB:
+ 		ret->machine = strdup ("arm");
+ 		ret->arch = strdup ("arm");
+ 		ret->bits = 16;
+ 		break;
 	case COFF_FILE_MACHINE_ARM:
 		ret->machine = strdup ("ARM");
 		ret->arch = strdup ("arm");
@@ -581,6 +599,14 @@ static RBinInfo *info(RBinFile *bf) {
 		ret->arch = strdup ("arm");
 		ret->bits = 32;
 		break;
+	case COFF_FILE_MACHINE_SH3:
+ 	case COFF_FILE_MACHINE_SH3DSP:
+ 	case COFF_FILE_MACHINE_SH4:
+ 	case COFF_FILE_MACHINE_SH5:
+ 		ret->machine = strdup ("sh");
+ 		ret->arch = strdup ("sh");
+ 		ret->bits = 32;
+ 		break;
 	case COFF_FILE_TI_COFF:
 		switch (obj->target_id) {
 		case COFF_FILE_MACHINE_TMS320C54:

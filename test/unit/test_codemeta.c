@@ -7,7 +7,7 @@
 
 static RCodeMetaItem make_code_annotation(int st, int en, RCodeMetaItemType typec,
 	ut64 offset, RSyntaxHighlightType types) {
-	RCodeMetaItem annotation = { 0 };
+	RCodeMetaItem annotation = {0};
 	annotation.start = st;
 	annotation.end = en;
 	annotation.type = typec;
@@ -22,7 +22,7 @@ static RCodeMetaItem make_code_annotation(int st, int en, RCodeMetaItemType type
 
 static RCodeMetaItem make_variable_annotation(int st, int en, RCodeMetaItemType typec,
 	const char *name) {
-	RCodeMetaItem annotation = { 0 };
+	RCodeMetaItem annotation = {0};
 	annotation.start = st;
 	annotation.end = en;
 	annotation.type = typec;
@@ -32,7 +32,7 @@ static RCodeMetaItem make_variable_annotation(int st, int en, RCodeMetaItemType 
 
 static RCodeMetaItem make_reference_annotation(int st, int en, RCodeMetaItemType typec,
 	ut64 offset, const char *name) {
-	RCodeMetaItem annotation = { 0 };
+	RCodeMetaItem annotation = {0};
 	annotation.start = st;
 	annotation.end = en;
 	annotation.type = typec;
@@ -272,17 +272,17 @@ static bool test_r_codemeta_line_offsets(void) {
 	mu_assert_eq (offsets->len, 6, "Number of offsets not expected");
 
 	ut64 *off = r_vector_index_ptr (offsets, 0);
-	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%llu");
+	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%"PFMT64u);
 	off = r_vector_index_ptr (offsets, 1);
-	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%llu");
+	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%"PFMT64u);
 	off = r_vector_index_ptr (offsets, 2);
-	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%llu");
+	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%"PFMT64u);
 	off = r_vector_index_ptr (offsets, 3);
-	mu_assert_eq_fmt (*off, (ut64)4440, "Unexpected offset", "%llu");
+	mu_assert_eq_fmt (*off, (ut64)4440, "Unexpected offset", "%"PFMT64u);
 	off = r_vector_index_ptr (offsets, 4);
-	mu_assert_eq_fmt (*off, (ut64)4447, "Unexpected offset", "%llu");
+	mu_assert_eq_fmt (*off, (ut64)4447, "Unexpected offset", "%"PFMT64u);
 	off = r_vector_index_ptr (offsets, 5);
-	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%llu");
+	mu_assert_eq_fmt (*off, UT64_MAX, "Unexpected offset", "%"PFMT64u);
 
 	r_vector_free (offsets);
 	r_codemeta_free (code);

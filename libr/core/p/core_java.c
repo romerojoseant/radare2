@@ -11,7 +11,6 @@
 #include "../../../shlr/java/ops.h"
 #include "../../../shlr/java/class.h"
 #include "../../../shlr/java/code.h"
-#include "../../../shlr/java/dsojson.h"
 
 #define DO_THE_DBG 0
 #undef IFDBG
@@ -26,9 +25,9 @@ typedef struct found_idx_t {
 
 typedef int (*RCMDJavaCmdHandler) (RCore *core, const char *cmd);
 
-static const char * r_cmd_java_strtok (const char *str1, const char b, size_t len);
-static const char * r_cmd_java_consumetok (const char *str1, const char b, size_t len);
-static int r_cmd_java_reload_bin_from_buf (RCore *core, RBinJavaObj *obj, ut8* buffer, ut64 len);
+static const char *r_cmd_java_strtok(const char *str1, const char b, size_t len);
+static const char *r_cmd_java_consumetok(const char *str1, const char b, size_t len);
+static int r_cmd_java_reload_bin_from_buf(RCore *core, RBinJavaObj *obj, ut8* buffer, ut64 len);
 
 static int r_cmd_java_print_json_definitions( RBinJavaObj *obj  );
 static int r_cmd_java_print_all_definitions( RAnal *anal );
@@ -37,38 +36,38 @@ static int r_cmd_java_print_field_definitions( RBinJavaObj *obj );
 static int r_cmd_java_print_method_definitions( RBinJavaObj *obj );
 static int r_cmd_java_print_import_definitions( RBinJavaObj *obj );
 
-static int r_cmd_java_resolve_cp_idx (RBinJavaObj *obj, ut16 idx);
-static int r_cmd_java_resolve_cp_type (RBinJavaObj *obj, ut16 idx);
-static int r_cmd_java_resolve_cp_idx_b64 (RBinJavaObj *obj, ut16 idx);
-static int r_cmd_java_resolve_cp_address (RBinJavaObj *obj, ut16 idx);
-static int r_cmd_java_resolve_cp_to_key (RBinJavaObj *obj, ut16 idx);
-static int r_cmd_java_resolve_cp_summary (RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_resolve_cp_idx(RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_resolve_cp_type(RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_resolve_cp_idx_b64(RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_resolve_cp_address(RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_resolve_cp_to_key(RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_resolve_cp_summary(RBinJavaObj *obj, ut16 idx);
 
-static int r_cmd_java_print_class_access_flags_value( const char * flags );
-static int r_cmd_java_print_field_access_flags_value( const char * flags );
-static int r_cmd_java_print_method_access_flags_value( const char * flags );
-static int r_cmd_java_get_all_access_flags_value (const char *cmd);
+static int r_cmd_java_print_class_access_flags_value( const char *flags );
+static int r_cmd_java_print_field_access_flags_value( const char *flags );
+static int r_cmd_java_print_method_access_flags_value( const char *flags );
+static int r_cmd_java_get_all_access_flags_value(const char *cmd);
 
-static int r_cmd_java_set_acc_flags (RCore *core, ut64 addr, ut16 num_acc_flag);
+static int r_cmd_java_set_acc_flags(RCore *core, ut64 addr, ut16 num_acc_flag);
 
 #define _(x) UNUSED_FUNCTION(x)
-static int r_cmd_java_print_field_summary (RBinJavaObj *obj, ut16 idx);
-static int _(r_cmd_java_print_field_count) (RBinJavaObj *obj);
-static int r_cmd_java_print_field_name (RBinJavaObj *obj, ut16 idx);
-static int r_cmd_java_print_field_num_name (RBinJavaObj *obj);
-static int r_cmd_java_print_method_summary (RBinJavaObj *obj, ut16 idx);
-static int _(r_cmd_java_print_method_count) (RBinJavaObj *obj);
-static int r_cmd_java_print_method_name (RBinJavaObj *obj, ut16 idx);
-static int r_cmd_java_print_method_num_name (RBinJavaObj *obj);
+static int r_cmd_java_print_field_summary(RBinJavaObj *obj, ut16 idx);
+static int _(r_cmd_java_print_field_count)(RBinJavaObj *obj);
+static int r_cmd_java_print_field_name(RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_print_field_num_name(RBinJavaObj *obj);
+static int r_cmd_java_print_method_summary(RBinJavaObj *obj, ut16 idx);
+static int _(r_cmd_java_print_method_count)(RBinJavaObj *obj);
+static int r_cmd_java_print_method_name(RBinJavaObj *obj, ut16 idx);
+static int r_cmd_java_print_method_num_name(RBinJavaObj *obj);
 
-static RBinJavaObj * r_cmd_java_get_bin_obj(RAnal *anal);
-static RList * r_cmd_java_get_bin_obj_list(RAnal *anal);
+static RBinJavaObj *r_cmd_java_get_bin_obj(RAnal *anal);
+static RList *r_cmd_java_get_bin_obj_list(RAnal *anal);
 static ut64 r_cmd_java_get_input_num_value(RCore *core, const char *input_value);
 static int r_cmd_java_is_valid_input_num_value(RCore *core, const char *input_value);
 
 
 static int r_cmd_java_call(void *user, const char *input);
-static int r_cmd_java_handle_help(RCore * core, const char * input);
+static int r_cmd_java_handle_help(RCore * core, const char *input);
 static int r_cmd_java_handle_set_flags(RCore *core, const char *cmd);
 static int r_cmd_java_handle_prototypes(RCore *core, const char *cmd);
 static int r_cmd_java_handle_resolve_cp(RCore *core, const char *cmd);
@@ -352,17 +351,17 @@ static const char *r_cmd_java_strtok(const char *str1, const char b, size_t len)
 	if (len == (size_t)-1) {
 		len = strlen (str1);
 	}
-	IFDBG r_cons_printf ("Looking for char (%c) in (%s) up to %zu\n", b, p, len);
+	IFDBG r_cons_printf ("Looking for char (%c) in (%s) up to %u\n", b, p, (unsigned int)len);
 	for (; i < len; i++, p++) {
 		if (*p == b) {
-			IFDBG r_cons_printf ("Found? for char (%c) @ %zu: (%s)\n", b, i, p);
+			IFDBG r_cons_printf ("Found? for char (%c) @ %u: (%s)\n", b, (unsigned int)i, p);
 			break;
 		}
 	}
 	if (i == len) {
 		p = NULL;
 	}
-	IFDBG r_cons_printf ("Found? for char (%c) @ %zu: (%s)\n", b, len, p);
+	IFDBG r_cons_printf ("Found? for char (%c) @ %u: (%s)\n", b, (unsigned int)len, p);
 	return p;
 }
 
@@ -475,7 +474,7 @@ static RList *cpfind_str(RBinJavaObj *obj, const char *cmd) {
 	if (!cmd) {
 		return r_list_new ();
 	}
-	IFDBG r_cons_printf ("Looking for str: %s (%zu)\n", cmd, strlen (cmd));
+	IFDBG r_cons_printf ("Looking for str: %s (%u)\n", cmd, (unsigned int)strlen (cmd));
 	return r_bin_java_find_cp_const_by_val (obj, (const ut8 *)cmd, strlen (cmd), R_BIN_JAVA_CP_UTF8);
 }
 
@@ -582,7 +581,7 @@ static int r_cmd_java_get_cp_bytes_and_write(RCore *core, RBinJavaObj *obj, ut16
 		bin_buffer = n_file_sz > 0? malloc (n_file_sz): NULL;
 		if (bin_buffer) {
 			memset (bin_buffer, 0, n_file_sz);
-			res = n_file_sz == r_io_read_at (core->io, obj->loadaddr, bin_buffer, n_file_sz)? true: false;
+			res = (n_file_sz == r_io_read_at (core->io, obj->loadaddr, bin_buffer, n_file_sz))? true: false;
 			if (res == true) {
 				res = r_cmd_java_reload_bin_from_buf (
 					core, obj, bin_buffer, n_file_sz);
@@ -1534,14 +1533,14 @@ static int r_cmd_java_print_all_definitions(RAnal *anal) {
 	r_list_foreach (obj_list, iter, obj) {
 		r_cmd_java_print_class_definitions (obj);
 	}
+	r_list_free (obj_list);
 	return true;
 }
 
 static int r_cmd_java_print_json_definitions(RBinJavaObj *obj) {
-	DsoJsonObj *json_obj = r_bin_java_get_bin_obj_json (obj);
-	char *str = dso_json_obj_to_str (json_obj);
-	dso_json_obj_del (json_obj); // XXX memleak
-	r_cons_println (str);
+	char *s = r_bin_java_get_bin_obj_json (obj);
+	r_cons_println (s);
+	free (s);
 	return true;
 }
 
@@ -1578,6 +1577,7 @@ static int r_cmd_java_print_class_definitions(RBinJavaObj *obj) {
 			ut64 *addr = r_list_get_n (the_moffsets, idx);
 			str = r_list_get_n (the_methods, idx);
 			r_cons_printf ("  %s; // @0x%04" PFMT64x "\n", str, *addr);
+			free (str);
 			idx++;
 		}
 	}

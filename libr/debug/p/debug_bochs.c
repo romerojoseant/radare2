@@ -28,7 +28,7 @@ static bool isBochs(RDebug *dbg) {
 	return false;
 }
 
-static int r_debug_bochs_breakpoint (RBreakpoint *bp, RBreakpointItem *b, bool set) {
+static int r_debug_bochs_breakpoint(RBreakpoint *bp, RBreakpointItem *b, bool set) {
 	char cmd[64];
 	char num[4];
 	char addr[19];
@@ -361,7 +361,7 @@ static bool r_debug_bochs_detach(RDebug *dbg, int pid) {
 }
 
 static const char *r_debug_bochs_reg_profile(RDebug *dbg) {
-	int bits = dbg->anal->bits;
+	int bits = dbg->anal->config->bits;
 
 	if (bits == 16 || bits == 32 || bits == 64) {
 		return strdup (
@@ -380,6 +380,7 @@ static const char *r_debug_bochs_reg_profile(RDebug *dbg) {
 				"seg	fs	2	0x040	0	\n"
 				"seg	gs	2	0x042	0	\n"
 
+				"gpr	riz	8	?	0	\n"
 				"gpr	rax	8	0x078	0	\n"
 				"gpr	eax	4	0x078	0	\n"
 				"gpr	ax	2	0x078	0	\n"

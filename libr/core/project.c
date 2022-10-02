@@ -1,8 +1,5 @@
-/* radare - LGPL - Copyright 2010-2021 - pancake, rhl */
+/* radare - LGPL - Copyright 2010-2022 - pancake, rhl */
 
-#include <r_types.h>
-#include <r_list.h>
-#include <r_flag.h>
 #include <r_core.h>
 #include <rvc.h>
 #define USE_R2 1
@@ -13,7 +10,7 @@
 // project apis to be used from cmd_project.c
 
 static bool is_valid_project_name(const char *name) {
-	if (r_str_len_utf8 (name) >= 16) {
+	if (r_str_len_utf8 (name) >= 64) {
 		return false;
 	}
 	const char *extention = r_str_endswith (name, ".zip") ? r_str_last (name, ".zip") : NULL;
@@ -86,17 +83,18 @@ R_API bool r_core_is_project(RCore *core, const char *name) {
 	return ret;
 }
 
-R_API int r_core_project_cat(RCore *core, const char *name) {
+R_API void r_core_project_cat(RCore *core, const char *name) {
+	r_core_return_code (core, R_CMD_RC_FAILURE);
 	char *path = get_project_script_path (core, name);
 	if (path) {
 		char *data = r_file_slurp (path, NULL);
 		if (data) {
 			r_cons_println (data);
 			free (data);
+			r_core_return_code (core, R_CMD_RC_SUCCESS);
 		}
+		free (path);
 	}
-	free (path);
-	return 0;
 }
 
 R_API int r_core_project_list(RCore *core, int mode) {
@@ -156,7 +154,13 @@ R_API int r_core_project_delete(RCore *core, const char *prjfile) {
 			free (path);
 			return false;
 		}
-		r_file_rm_rf (prj_dir);
+		bool must_rm = true;
+		if (r_config_get_b (core->config, "scr.interactive")) {
+			must_rm = r_cons_yesno ('y', "Confirm project deletion? (Y/n)");
+		}
+		if (must_rm) {
+			r_file_rm_rf (prj_dir);
+		}
 		free (prj_dir);
 	}
 	free (path);
@@ -181,8 +185,6 @@ static bool load_project_rop(RCore *core, const char *prjfile) {
 	char *prj_dir = r_file_dirname (rc_path);
 	R_FREE (rc_path);
 	if (r_str_endswith (prjfile, R_SYS_DIR "rc.r2")) {
-		// XXX
-		eprintf ("ENDS WITH\n");
 		path = strdup (prjfile);
 		path[strlen (path) - 3] = 0;
 	} else if (r_file_fexists ("%s%s%src.r2", R_SYS_DIR, prj_dir, prjfile)) {
@@ -301,7 +303,20 @@ static bool r_core_project_load(RCore *core, const char *prj_name, const char *r
 	const bool scr_interactive = r_cons_is_interactive ();
 	const bool scr_prompt = r_config_get_b (core->config, "scr.prompt");
 	(void) load_project_rop (core, prj_name);
-	bool ret = r_core_cmd_file (core, rcpath);
+	const bool sandy = r_config_get_b (core->config, "prj.sandbox");
+	bool ret = false;
+	if (sandy) {
+		// enable sandbox (only allow file access, no network or program exec)
+		// projects can also tweak the cmd. eval vars to run code after the project is loaded
+		// users must be careful on that.
+		int oldgrain = r_sandbox_grain (R_SANDBOX_GRAIN_DISK | R_SANDBOX_GRAIN_FILES);
+		r_sandbox_enable (true);
+		ret = r_core_cmd_file (core, rcpath);
+		r_sandbox_disable (true);
+		r_sandbox_grain (oldgrain);
+	} else {
+		ret = r_core_cmd_file (core, rcpath);
+	}
 	r_config_set_b (core->config, "cfg.fortunes", cfg_fortunes);
 	r_config_set_b (core->config, "scr.interactive", scr_interactive);
 	r_config_set_b (core->config, "scr.prompt", scr_prompt);
@@ -327,7 +342,7 @@ R_API RThread *r_core_project_load_bg(RCore *core, const char *prj_name, const c
 	RThread *th = r_th_new (project_load_background, ps, false);
 	if (th) {
 		r_th_start (th, true);
-		char thname[32] = { 0 };
+		char thname[32] = {0};
 		size_t thlen = R_MIN (strlen (prj_name), sizeof (thname) - 1);
 		r_str_ncpy (thname, prj_name, thlen);
 		r_th_setname (th, thname);
@@ -337,10 +352,13 @@ R_API RThread *r_core_project_load_bg(RCore *core, const char *prj_name, const c
 
 R_API bool r_core_project_open(RCore *core, const char *prj_path) {
 	r_return_val_if_fail (core && !R_STR_ISEMPTY (prj_path), false);
-	int ret, close_current_session = 1;
+	bool interactive = r_config_get_b (core->config, "scr.interactive");
+	bool close_current_session = true;
+	bool ask_for_closing = true;
 	if (r_project_is_loaded (core->prj)) {
 		eprintf ("There's a project already opened\n");
-		bool ccs = r_cons_yesno ('y', "Close current session? (Y/n)");
+		ask_for_closing = false;
+		bool ccs = interactive? r_cons_yesno ('y', "Close current session? (Y/n)"): true;
 		if (ccs) {
 			r_core_cmd0 (core, "o--");
 		} else {
@@ -354,18 +372,21 @@ R_API bool r_core_project_open(RCore *core, const char *prj_path) {
 		eprintf ("Invalid project name '%s'\n", prj_path);
 		return false;
 	}
-	if (r_project_is_loaded (core->prj)) {
+	if (ask_for_closing && r_project_is_loaded (core->prj)) {
 		if (r_cons_is_interactive ()) {
-			close_current_session = r_cons_yesno ('y', "Close current session? (Y/n)");
+			close_current_session = interactive? r_cons_yesno ('y', "Close current session? (Y/n)"): true;
 		}
 	}
 	if (close_current_session) {
 		r_core_cmd0 (core, "e prj.name=;o--");
 	}
 	/* load sdb stuff in here */
-	ret = r_core_project_load (core, prj_name, prj_script);
+	bool ret = r_core_project_load (core, prj_name, prj_script);
 	free (prj_name);
 	free (prj_script);
+	if (ret) {
+		r_core_project_undirty (core);
+	}
 	return ret;
 }
 
@@ -446,15 +467,19 @@ static bool store_files_and_maps(RCore *core, RIODesc *desc, ut32 id) {
 #endif
 
 R_API bool r_core_project_save_script(RCore *core, const char *file, int opts) {
-	char *filename, *hl, *ohl = NULL;
-	int fdold;
+	char *hl, *ohl = NULL;
 
 	if (R_STR_ISEMPTY (file)) {
 		return false;
 	}
 
-	filename = r_str_word_get_first (file);
-	int fd = r_sandbox_open (file, O_BINARY | O_RDWR | O_CREAT | O_TRUNC, 0644);
+	char *filename = r_str_word_get_first (file);
+	int fd = -1;
+	if (!strcmp (file, "/dev/stdout")) {
+		fd = 1;
+	} else {
+		fd = r_sandbox_open (file, O_BINARY | O_RDWR | O_CREAT | O_TRUNC, 0644);
+	}
 	if (fd == -1) {
 		free (filename);
 		return false;
@@ -465,27 +490,27 @@ R_API bool r_core_project_save_script(RCore *core, const char *file, int opts) {
 		ohl = strdup (hl);
 		r_cons_highlight (NULL);
 	}
-	fdold = r_cons_singleton ()->fdout;
+	int fdold = r_cons_singleton ()->fdout;
 	r_cons_singleton ()->fdout = fd;
 	r_cons_singleton ()->context->is_interactive = false;
-	r_str_write (fd, "# r2 rdb project file\n");
+	r_cons_printf ("# r2 rdb project file\n");
 	// new behaviour to project load routine (see io maps below).
 	if (opts & R_CORE_PRJ_EVAL) {
-		r_str_write (fd, "# eval\n");
-		r_config_list (core->config, NULL, true);
+		r_cons_printf ("# eval\n");
+		r_config_list (core->config, NULL, 'r');
 		r_cons_flush ();
 	}
 	r_core_cmd (core, "o*", 0);
 	r_core_cmd0 (core, "tcc*");
 	if (opts & R_CORE_PRJ_FCNS) {
-		r_str_write (fd, "# functions\n");
-		r_str_write (fd, "fs functions\n");
+		r_cons_printf ("# functions\n");
+		r_cons_printf ("fs functions\n");
 		r_core_cmd (core, "afl*", 0);
 		r_cons_flush ();
 	}
 
 	if (opts & R_CORE_PRJ_FLAGS) {
-		r_str_write (fd, "# flags\n");
+		r_cons_printf ("# flags\n");
 		r_flag_space_push (core->flags, NULL);
 		r_flag_list (core->flags, true, NULL);
 		r_flag_space_pop (core->flags);
@@ -503,7 +528,7 @@ R_API bool r_core_project_save_script(RCore *core, const char *file, int opts) {
 		r_cons_flush ();
 	}
 	if (opts & R_CORE_PRJ_META) {
-		r_str_write (fd, "# meta\n");
+		r_cons_printf ("# meta\n");
 		r_meta_print_list_all (core->anal, R_META_TYPE_ANY, 1, NULL);
 		r_cons_flush ();
 		r_core_cmd (core, "fV*", 0);
@@ -526,14 +551,14 @@ R_API bool r_core_project_save_script(RCore *core, const char *file, int opts) {
 		r_cons_flush ();
 	}
 	if (opts & R_CORE_PRJ_ANAL_TYPES) {
-		r_str_write (fd, "# types\n");
+		r_cons_printf ("# types\n");
 		r_core_cmd (core, "t*", 0);
 		r_cons_flush ();
 	}
 	if (opts & R_CORE_PRJ_ANAL_MACROS) {
-		r_str_write (fd, "# macros\n");
+		r_cons_printf ("# macros\n");
 		r_core_cmd (core, "(*", 0);
-		r_str_write (fd, "# aliases\n");
+		r_cons_printf ("# aliases\n");
 		r_core_cmd (core, "$*", 0);
 		r_cons_flush ();
 	}
@@ -587,7 +612,7 @@ R_API bool r_core_project_save(RCore *core, const char *prj_name) {
 		prj_dir = strdup (prj_name);
 	}
 	if (r_core_is_project (core, prj_name) && strcmp (prj_name, r_config_get (core->config, "prj.name"))) {
-		eprintf ("A project with this name already exists\n");
+		eprintf ("A project with this name already exists. Use Ps-%s to delete it.\n", prj_name);
 		free (script_path);
 		free (prj_dir);
 		return false;
@@ -619,7 +644,7 @@ R_API bool r_core_project_save(RCore *core, const char *prj_name) {
 		r_config_set (core->config, "prj.name", "");
 	}
 
-	if (r_config_get_i (core->config, "prj.files")) {
+	if (r_config_get_b (core->config, "prj.files")) {
 		eprintf ("TODO: prj.files: support copying more than one file into the project directory\n");
 		char *bin_file = r_core_project_name (core, prj_name);
 		const char *bin_filename = r_file_basename (bin_file);
@@ -686,8 +711,11 @@ R_API bool r_core_project_save(RCore *core, const char *prj_name) {
 	}
 	free (script_path);
 	r_config_set (core->config, "prj.name", prj_name);
+	r_core_project_undirty (core);
 	return ret;
 }
+
+// dirty bits
 
 R_API char *r_core_project_notes_file(RCore *core, const char *prj_name) {
 	const char *prjdir = r_config_get (core->config, "dir.projects");
@@ -697,43 +725,13 @@ R_API char *r_core_project_notes_file(RCore *core, const char *prj_name) {
 	return notes_txt;
 }
 
-R_API bool r_core_project_is_saved(RCore *core) {
-	bool ret;
-	char *saved_dat, *tmp_dat;
-	char *pd = r_str_newf ("%s" R_SYS_DIR "%s",
-		r_config_get (core->config, "dir.projects"),
-		r_config_get (core->config, "prj.name"));
-	if (!pd) {
-		return false;
-	}
-	char *sp = r_str_newf ("%s" R_SYS_DIR "%s", pd, "rc.r2");
-	if (!sp) {
-		free (pd);
-		return false;
-	}
-	char *tsp = r_str_newf ("%s" R_SYS_DIR "tmp", pd);
-	//horrible code follows:
-	free (pd);
-	if (!tsp) {
-		free (sp);
-		return false;
-	}
-	r_core_project_save_script (core, tsp, R_CORE_PRJ_ALL);
-	saved_dat = r_file_slurp (sp, 0);
-	free (sp);
-	if (!saved_dat) {
-		free (tsp);
-		return false;
-	}
-	//Would be better if I knew how to map files in mem in windows
-	tmp_dat = r_file_slurp (tsp, 0);
-	r_file_rm (tsp);
-	free (tsp);
-	if (!tmp_dat) {
-		return false;
-	}
-	ret = !strcmp (tmp_dat, saved_dat);
-	free (tmp_dat);
-	free (saved_dat);
-	return ret;
+R_API bool r_core_project_is_dirty(RCore *core) {
+	return !R_IS_DIRTY (core->config) && !R_IS_DIRTY (core->anal) && !R_IS_DIRTY (core->flags);
 }
+
+R_API void r_core_project_undirty(RCore *core) {
+	core->config->is_dirty = false;
+	core->anal->is_dirty = false;
+	core->flags->is_dirty = false;
+}
+

@@ -11,7 +11,7 @@
 #include <r_lib.h>
 #include <r_asm.h>
 #if WANT_CAPSTONE
-#include <capstone.h>
+#include <capstone/capstone.h>
 #endif
 
 #ifdef CAPSTONE_TMS320C64X_H
@@ -58,7 +58,7 @@ static int tms320c64x_disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) 
 		goto beach;
 	}
 	op->size = insn->size;
-	char *buf_asm = sdb_fmt ("%s%s%s", insn->mnemonic, insn->op_str[0]? " ": "", insn->op_str);
+	r_strf_var (buf_asm, 256, "%s%s%s", insn->mnemonic, insn->op_str[0]? " ": "", insn->op_str);
 	r_str_replace_char (buf_asm, '%', 0);
 	r_str_case (buf_asm, false);
 	r_asm_op_set_asm (op, buf_asm);
@@ -72,18 +72,19 @@ static int tms320c64x_disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) 
 
 #include "../arch/tms320/tms320_dasm.h"
 
-static tms320_dasm_t engine = { 0 };
+static R_TH_LOCAL tms320_dasm_t engine = {0};
 
 static int tms320_disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
-	if (a->cpu && r_str_casecmp (a->cpu, "c54x") == 0) {
+	const char *cpu = a->config->cpu;
+	if (cpu && r_str_casecmp (cpu, "c54x") == 0) {
 		tms320_f_set_cpu (&engine, TMS320_F_CPU_C54X);
-	} else if (a->cpu && r_str_casecmp(a->cpu, "c55x+") == 0) {
+	} else if (cpu && r_str_casecmp(cpu, "c55x+") == 0) {
 		tms320_f_set_cpu (&engine, TMS320_F_CPU_C55X_PLUS);
-	} else if (a->cpu && r_str_casecmp(a->cpu, "c55x") == 0) {
+	} else if (cpu && r_str_casecmp(cpu, "c55x") == 0) {
 		tms320_f_set_cpu (&engine, TMS320_F_CPU_C55X);
 	} else {
 #if CAPSTONE_HAS_TMS320C64X
-		if (a->cpu && !r_str_casecmp (a->cpu, "c64x")) {
+		if (cpu && !r_str_casecmp (cpu, "c64x")) {
 			return tms320c64x_disassemble (a, op, buf, len);
 		}
 #endif
@@ -95,11 +96,11 @@ static int tms320_disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	return op->size;
 }
 
-static bool tms320_init(void * user) {
+static bool tms320_init(void *user) {
 	return tms320_dasm_init (&engine);
 }
 
-static bool tms320_fini(void * user) {
+static bool tms320_fini(void *user) {
 	return tms320_dasm_fini (&engine);
 }
 

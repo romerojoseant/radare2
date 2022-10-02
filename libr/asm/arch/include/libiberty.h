@@ -1,7 +1,7 @@
 /* Function declarations for libiberty.
 
    Copyright 2001, 2002, 2005 Free Software Foundation, Inc.
-   
+
    Note - certain prototypes declared in this header file are for
    functions whoes implementation copyright does not belong to the
    FSF.  Those prototypes are present in this file for reference
@@ -23,7 +23,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street - Fifth Floor,
    Boston, MA 02110-1301, USA.
-   
+
    Written by Cygnus Support, 1994.
 
    The libiberty library provides a number of functions which are
@@ -184,7 +184,7 @@ extern char * getpwd (void);
 #ifdef __MINGW32__
 /* Forward declaration to avoid #include <sys/time.h>.   */
 struct timeval;
-extern int gettimeofday (struct timeval *, void *); 
+extern int gettimeofday (struct timeval *, void *);
 #endif
 
 /* Get the amount of time the process has run, in microseconds.  */
@@ -271,30 +271,30 @@ extern void xmalloc_failed (size_t) ATTRIBUTE_NORETURN;
    message to stderr (using the name set by xmalloc_set_program_name,
    if any) and then call xexit.  */
 
-extern void *xmalloc (size_t) ATTRIBUTE_MALLOC;
+//extern void *xmalloc (size_t) ATTRIBUTE_MALLOC;
 
 /* Reallocate memory without fail.  This works like xmalloc.  Note,
    realloc type functions are not suitable for attribute malloc since
    they may return the same address across multiple calls. */
 
-extern void *xrealloc (void *, size_t);
+//extern void *xrealloc (void *, size_t);
 
 /* Allocate memory without fail and set it to zero.  This works like
    xmalloc.  */
 
-extern void *xcalloc (size_t, size_t) ATTRIBUTE_MALLOC;
+//extern void *xcalloc (size_t, size_t) ATTRIBUTE_MALLOC;
 
 /* Copy a string into a memory buffer without fail.  */
 
-extern char *xstrdup (const char *) ATTRIBUTE_MALLOC;
+//extern char *xstrdup (const char *) ATTRIBUTE_MALLOC;
 
 /* Copy at most N characters from string into a buffer without fail.  */
 
-extern char *xstrndup (const char *, size_t) ATTRIBUTE_MALLOC;
+//extern char *xstrndup (const char *, size_t) ATTRIBUTE_MALLOC;
 
 /* Copy an existing memory buffer to a new memory buffer without fail.  */
 
-extern void *xmemdup (const void *, size_t, size_t) ATTRIBUTE_MALLOC;
+//extern void *xmemdup (const void *, size_t, size_t) ATTRIBUTE_MALLOC;
 
 /* Physical memory routines.  Return values are in BYTES.  */
 extern double physmem_total (void);
@@ -308,12 +308,14 @@ extern double physmem_available (void);
    as new/delete and new[]/delete[].  */
 
 /* Scalar allocators.  */
-#ifdef _MSC_VER
 #include <stdlib.h>
+#undef xmalloc
 #define xmalloc malloc
+#undef xcalloc
 #define xcalloc calloc
+#undef xrealloc
 #define xrealloc realloc
-#endif
+
 #define XNEW(T)			((T *) xmalloc (sizeof (T)))
 #define XCNEW(T)		((T *) xcalloc (1, sizeof (T)))
 #define XDELETE(P)		free ((void*) (P))

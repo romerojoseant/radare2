@@ -1,20 +1,39 @@
 @echo off
 REM call preconfigure.bat
 
+set MESON_FLAGS=-Dsdb_cgen=false
+
+if "%*" == "asan" (
+  set MESON_FLAGS=%MESON_FLAGS% -Dwasan=true
+)
+
+if "%*" == "static" (
+  set MESON_FLAGS=%MESON_FLAGS% -Dstatic_runtime=true -Dblob=true -Denable_r2r=false -Denable_tests=false
+)
+
 set PATH=%CD%\prefix\bin;%PATH%
+set WORKS=0
 if EXIST vs (
-meson vs -Dsdb_cgen=false --backend vs --reconfigure
+  meson vs %MESON_FLAGS% --backend vs --reconfigure && set WORKS=1
 ) else (
-meson vs -Dsdb_cgen=false --backend vs
+  meson vs %MESON_FLAGS% --backend vs && set WORKS=1
 )
 
+if %WORKS% EQU 1 (
+  echo Done
+) else (
+  echo VS failed Try running 'preconfigure'
+  exit /b 1
+)
+
+set WORKS=0
 if EXIST b (
-meson b -Dsdb_cgen=false --reconfigure
+  meson b %MESON_FLAGS% --reconfigure && set WORKS=1
 ) else (
-meson b -Dsdb_cgen=false --buildtype=release
+  meson b %MESON_FLAGS% --buildtype=release && set WORKS=1
 )
 
-if %ERRORLEVEL% == 0 (
+if %WORKS% EQU 1 (
   echo Done
   exit /b 0
 ) else (

@@ -25,12 +25,12 @@ endif
 
 ifeq ($(CS_RELEASE),1)
 CS_VER=4.0.2
-CS_TAR=https://codeload.github.com/aquynh/capstone/tar.gz/$(CS_VER)
+CS_TAR=https://codeload.github.com/capstone-engine/capstone/tar.gz/$(CS_VER)
 #CS_TAR=http://capstone-engine.org/download/$(CS_VER)/capstone-$(CS_VER).tgz
 CS_PATCHES=0
 else
 CS_TAR=
-CS_URL_BASE=github.com/aquynh/capstone
+CS_URL_BASE=github.com/capstone-engine/capstone
 CS_URL=$(GIT_PREFIX)$(CS_URL_BASE).git
 CS_ARCHIVE=https://$(CS_URL_BASE)/archive
 CS_UPD=20201203
@@ -39,7 +39,7 @@ ifeq ($(USE_CS4),1)
 CS_TIP=a7cac8352f7397aa73bb2e2dcc1b6cdb2e1b8461
 CS_BRA=v4
 else
-CS_TIP=f278de39c1e8a9fca977b8dfeed99d6d1f8b82bf
+CS_TIP=c57915c8fd281b68ffa373fa646251fda552e38f
 CS_BRA=next
 endif
 ifeq ($(CS_COMMIT_ARCHIVE),1)
@@ -69,9 +69,9 @@ ifeq (1,$(WITH_GPL))
 MODS+=grub
 endif
 endif
-SDB_URL=git://github.com/radareorg/sdb
+SDB_URL=https://github.com/radareorg/sdb
 #SDB_URL=/Users/pancake/prg/sdb
-SPP_URL=git://github.com/trufae/spp
+SPP_URL=https://github.com/trufae/spp
 PWD=$(shell pwd)
 SDB_CONFIG=${PWD}/sdb-config.mk
 
@@ -83,7 +83,7 @@ all:
 	exit 1
 endif
 
-preall: libwinkd capstone-build bochs
+preall: libwinkd capstone-build bochs sdbs
 	@for MOD in ${MODS} ; do \
 		echo $(MAKE) -C $$MOD ; \
 		$(MAKE) -C $$MOD HAVE_VALA= ROOT="${PWD}/../" CC="${CC}" ; \
@@ -220,7 +220,7 @@ ifeq ($(CS_RELEASE),1)
 capstone-sync: capstone
 
 capstone-clean:
-	cd capstone ; $(MAKE) clean
+	-$(MAKE) -C capstone clean
 
 capstone: capstone-$(CS_VER).tar.gz
 	tar xzvf capstone-$(CS_VER).tar.gz
@@ -229,13 +229,13 @@ capstone: capstone-$(CS_VER).tar.gz
 	$(MAKE) patch-capstone
 
 # already implemented in capstone.sh
-patch-capstone:
+patch-capstone capstone-patch:
 ifeq ($(CS_PATCHES),1)
-	if [ -d capstone/.git ]; then \
+	if [ -d capstone -a -d capstone/.git ]; then \
 ifeq ($(USE_CS4),1)
-		cd capstone ; for PATCH in ../capstone-patches/v4/* ; do patch -p1 < $$PATCH ; done ; \
+		cd capstone && for PATCH in ../capstone-patches/v4/* ; do patch -p1 < $$PATCH ; done ; \
 else
-		cd capstone ; for PATCH in ../capstone-patches/v5/* ; do patch -p1 < $$PATCH ; done ; \
+		cd capstone && for PATCH in ../capstone-patches/v5/* ; do patch -p1 < $$PATCH ; done ; \
 endif
 	fi
 endif
@@ -252,7 +252,9 @@ capstone-sync:
 ifeq ($(WITHOUT_PULL),1)
 	@echo "Nothing to sync because of --without-pull"
 else
-	"$(SHELL)" capstone.sh "${CS_URL}" "${CS_BRA}" "${CS_TIP}" "${CS_REV}" "${CS_ARCHIVE_URL}"
+	if [ ! -d capstone ]; then \
+		"$(SHELL)" capstone.sh "${CS_URL}" "${CS_BRA}" "${CS_TIP}" "${CS_REV}" "${CS_ARCHIVE_URL}" ; \
+	fi
 endif
 
 .PHONY: capstone capstone-sync
@@ -265,12 +267,17 @@ all:
 endif
 
 capstone-build: capstone
+ifeq ($(CAPSTONE_LDFLAGS),)
 	cd capstone && CFLAGS="${CAPSTONE_CFLAGS} $(CFLAGS)" LDFLAGS="$(LDFLAGS)" \
 		$(MAKE) $(CAPSTONE_MAKEFLAGS) CC="$(CC)" AR_EXT=a IS_CYGWIN=0 CAPSTONE_STATIC=yes CAPSTONE_SHARED=no \
 		RANLIB="$(RANLIB)" LIBARCHS="" AR="$(AR)" IS_MINGW=0 libcapstone.a
 ifneq (${EXT_AR},a)
 	-cp -f capstone/libcapstone.a capstone/libcapstone.${EXT_AR}
 endif
+else
+	echo "Using capstone from system"
+endif
+
 endif
 endif
 
@@ -315,6 +322,13 @@ spp-sync sync-spp:
 
 spp: spp-sync
 	export CFLAGS="-DUSE_R2=1 -I../../libr/include -DHAVE_FORK=${HAVE_FORK} -fPIC";  $(MAKE) -C spp r2lib
+
+sync-yxml yxml-sync:
+	rm -rf yxml-git
+	git clone https://g.blicky.net/yxml.git/ yxml-git
+	cp -f yxml-git/yxml.c yxml/yxml.c
+	cp -f yxml-git/yxml.h yxml/yxml.h
+	rm -rf yxml-git
 
 SHLRS+=ar/libr_ar.a
 SHLRS+=bochs/lib/libbochs.a

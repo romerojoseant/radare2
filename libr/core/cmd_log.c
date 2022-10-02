@@ -1,9 +1,19 @@
-/* radare - LGPL - Copyright 2009-2021 - pancake */
+/* radare - LGPL - Copyright 2009-2022 - pancake */
 
 #include <string.h>
 #include "r_config.h"
 #include "r_cons.h"
 #include "r_core.h"
+
+bool rasm2_list(RCore *core, const char *arch, int fmt);
+
+static const char *help_msg_La[] = {
+	"Usage:", "La[qj]", " # asm/anal plugin list",
+	"La",  "", "List asm/anal pluginsh (See rasm2 -L)",
+	"Laq",  "", "Only list the plugin name",
+	"Laj",  "", "Full list, but in JSON format",
+	NULL
+};
 
 // TODO #7967 help refactor: move to another place
 static const char *help_msg_L[] = {
@@ -11,18 +21,19 @@ static const char *help_msg_L[] = {
 	"L",  "", "show this help",
 	"L", " blah."R_LIB_EXT, "load plugin file",
 	"L-", "duk", "unload core plugin by name",
-	"La", "", "list asm/anal plugins (aL, e asm.arch=" "??" ")",
-	"Lc", "", "list core plugins",
-	"Ld", "", "list debug plugins (same as dL)",
+	"La", "[qj]", "list asm/anal plugins (see: aL, e asm.arch=" "??" ")",
+	"Lc", "", "list core plugins (see",
+	"Ld", "", "list debug plugins (dL)",
 	"LD", "", "list supported decompilers (e cmd.pdc=?)",
 	"Le", "", "list esil plugins",
 	"Lg", "", "list egg plugins",
-	"Lh", "", "list hash plugins (same as ph)",
-	"Li", "", "list bin plugins (same as iL)",
-	"Ll", "", "list lang plugins (same as #!)",
+	"Lh", "", "list hash plugins (ph)",
+	"Li", "", "list bin plugins (iL)",
+	"Lt", "", "list color themes (eco)",
+	"Ll", "", "list lang plugins (#!)",
 	"LL", "", "lock screen",
-	"Lm", "", "list fs plugins (same as mL)",
-	"Lo", "", "list io plugins (same as oL)",
+	"Lm", "", "list fs plugins (mL)",
+	"Lo", "", "list io plugins (oL)",
 	"Lp", "", "list parser plugins (e asm.parser=?)",
 	NULL
 };
@@ -41,8 +52,8 @@ static const char *help_msg_T[] = {
 	"Tm", " [idx]", "display log messages without index",
 	"Ts", "", "list files in current directory (see pwd, cd)",
 	"TT", "", "enter into the text log chat console",
-	"T=", "[.]", "Pull logs from remote r2 instance specified by http.sync",
-	"T=&", "", "Start background thread syncing with the remote server",
+	"T=", "[.]", "pull logs from remote r2 instance specified by http.sync",
+	"T=&", "", "start background thread syncing with the remote server",
 	NULL
 };
 
@@ -163,7 +174,7 @@ static int getIndexFromLogString(const char *s) {
 	return -1;
 }
 
-static char *expr2cmd (RCoreLog *log, const char *line) {
+static char *expr2cmd(RCoreLog *log, const char *line) {
 	if (!line || !*line) {
 		return NULL;
 	}
@@ -189,7 +200,7 @@ static char *expr2cmd (RCoreLog *log, const char *line) {
 	return NULL;
 }
 
-static int log_callback_r2 (RCore *core, int count, const char *line) {
+static int log_callback_r2(RCore *core, int count, const char *line) {
 	if (*line == ':') {
 		char *cmd = expr2cmd (core->log, line);
 		if (cmd) {
@@ -201,7 +212,7 @@ static int log_callback_r2 (RCore *core, int count, const char *line) {
 	return 0;
 }
 
-static int log_callback_all (RCore *log, int count, const char *line) {
+static int log_callback_all(RCore *log, int count, const char *line) {
 	r_cons_printf ("%d %s\n", count, line);
 	return 0;
 }
@@ -329,6 +340,9 @@ static int cmd_plugins(void *data, const char *input) {
 	case '?':
 		r_core_cmd_help (core, help_msg_L);
 		break;
+	case 't': // "Lt"
+		r_core_cmd0 (core, "eco");
+		break;
 	case 'm': // "Lm"
 		r_core_cmdf (core, "mL%s", input + 1);
 		break;
@@ -342,7 +356,12 @@ static int cmd_plugins(void *data, const char *input) {
 		r_core_cmd0 (core, "ph"); // rahash2 -L is more verbose
 		break;
 	case 'a': // "La"
-		r_core_cmd0 (core, "e asm.arch=??");
+		if (input[1] == '?') {
+			r_core_cmd_help (core, help_msg_La);
+		} else {
+			// r_core_cmd0 (core, "e asm.arch=??");
+			rasm2_list (core, NULL, input[1]);
+		}
 		break;
 	case 'p': // "Lp"
 		r_core_cmd0 (core, "e asm.parser=?");
@@ -365,7 +384,7 @@ static int cmd_plugins(void *data, const char *input) {
 		break;
 	case 'o': // "Lo"
 	case 'i': // "Li"
-		r_core_cmdf (core, "%cL", input[0]);
+		r_core_cmdf (core, "%cL%s", input[0], input + 1);
 		break;
 	case 'c': { // "Lc"
 		RListIter *iter;

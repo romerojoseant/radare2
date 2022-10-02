@@ -50,7 +50,7 @@ static const bool config_lazy_lock =
     false
 #endif
     ;
-static const char * const config_malloc_conf = JEMALLOC_CONFIG_MALLOC_CONF;
+static const char *const config_malloc_conf = JEMALLOC_CONFIG_MALLOC_CONF;
 static const bool config_prof =
 #ifdef JEMALLOC_PROF
     true
@@ -263,6 +263,9 @@ typedef unsigned szind_t;
 #  ifdef __mips__
 #    define LG_QUANTUM		3
 #  endif
+#  ifdef __loongarch__
+#    define LG_QUANTUM		4	//TODO check me
+#  endif
 #  ifdef __or1k__
 #    define LG_QUANTUM		3
 #  endif
@@ -279,6 +282,9 @@ typedef unsigned szind_t;
 #    define LG_QUANTUM		4
 #  endif
 #  ifdef __tile__
+#    define LG_QUANTUM		4
+#  endif
+#  ifdef EMSCRIPTEN
 #    define LG_QUANTUM		4
 #  endif
 #  ifdef __WASM__

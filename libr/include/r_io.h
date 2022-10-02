@@ -58,7 +58,7 @@ typedef void * r_ptrace_data_t;
 #elif __APPLE__
 typedef int r_ptrace_request_t;
 typedef int r_ptrace_data_t;
-#elif __OpenBSD__
+#elif __OpenBSD__ || __FreeBSD__
 typedef int r_ptrace_request_t;
 typedef int r_ptrace_data_t;
 #define R_PTRACE_NODATA 0
@@ -107,7 +107,6 @@ typedef struct r_io_t {
 	struct r_io_desc_t *desc; // XXX deprecate... we should use only the fd integer, not hold a weak pointer
 	ut64 off;
 	ut32 bank;	// current bank
-	bool use_banks; // read from banks instead of the skyline thing
 	int bits;
 	int va;	// keep it as int, value can be 0, 1 or 2
 	bool ff;
@@ -119,12 +118,9 @@ typedef struct r_io_t {
 	bool cachemode; // write in cache all the read operations (EXPERIMENTAL)
 	ut32 p_cache; // uses 1, 2, 4.. probably R_PERM_RWX :D
 	ut64 mts;	// map "timestamps", this sucks somehow
-	ut32 curbank;	// id of current bank
-	RIDPool *map_ids;
-	RPVector maps; //from tail backwards maps with higher priority are found
-	RSkyline map_skyline; // map parts that are not covered by others
-	RIDStorage *files;
-	RIDStorage *banks;
+	RIDStorage *files;	// RIODescs accessible by their fd
+	RIDStorage *maps;	// RIOMaps accessible by their id
+	RIDStorage *banks;	// RIOBanks accessible by their id
 	RCache *buffer;
 	RPVector cache;
 	RSkyline cache_skyline;
@@ -139,7 +135,7 @@ typedef struct r_io_t {
 	char *args;
 	REvent *event;
 	PrintfCallback cb_printf;
-	RCoreBind corebind;
+	RCoreBind coreb;
 	// TODO Wrap ... well its more like a proxy, should unify across OS instead of using separate apis
 	bool want_ptrace_wrap;
 #if __WINDOWS__
@@ -227,6 +223,7 @@ typedef struct r_io_bank_t {
 	RRBTree *submaps;
 	RList *maprefs;	// references to maps, avoid double-free and dups
 	RQueue *todo;	// needed for operating on submap tree
+	RRBNode *last_used;
 	ut32 id;	// for fast selection with RIDStorage
 } RIOBank;
 
@@ -270,7 +267,9 @@ typedef const char *(*RIOFdGetName)(RIO *io, int fd);
 typedef RList *(*RIOFdGetMap)(RIO *io, int fd);
 typedef bool (*RIOFdRemap)(RIO *io, int fd, ut64 addr);
 typedef bool (*RIOIsValidOff)(RIO *io, ut64 addr, int hasperm);
-typedef RIOMap *(*RIOMapGet)(RIO *io, ut64 addr);
+typedef RIOBank *(*RIOBankGet)(RIO *io, ut32 bankid);
+typedef RIOMap *(*RIOMapGet)(RIO *io, ut32 id);
+typedef RIOMap *(*RIOMapGetAt)(RIO *io, ut64 addr);
 typedef RIOMap *(*RIOMapGetPaddr)(RIO *io, ut64 paddr);
 typedef bool (*RIOAddrIsMapped)(RIO *io, ut64 addr);
 typedef RIOMap *(*RIOMapAdd)(RIO *io, int fd, int flags, ut64 delta, ut64 addr, ut64 size);
@@ -306,7 +305,9 @@ typedef struct r_io_bind_t {
 	RIOFdRemap fd_remap;
 	RIOIsValidOff is_valid_offset;
 	RIOAddrIsMapped addr_is_mapped;
-	RIOMapGet map_get_at;
+	RIOBankGet bank_get;
+	RIOMapGet map_get;
+	RIOMapGetAt map_get_at;
 	RIOMapGetPaddr map_get_paddr;
 	RIOMapAdd map_add;
 	RIOV2P v2p;
@@ -318,7 +319,6 @@ typedef struct r_io_bind_t {
 } RIOBind;
 
 //map.c
-R_API RIOMap *r_io_map_new(RIO *io, int fd, int flags, ut64 delta, ut64 addr, ut64 size);
 R_API void r_io_map_init(RIO *io);
 R_API bool r_io_map_remap(RIO *io, ut32 id, ut64 addr);
 R_API bool r_io_map_remap_fd(RIO *io, int fd, ut64 addr);
@@ -326,11 +326,9 @@ R_API bool r_io_map_exists(RIO *io, RIOMap *map);
 R_API bool r_io_map_exists_for_id(RIO *io, ut32 id);
 R_API RIOMap *r_io_map_get(RIO *io, ut32 id);
 R_API RIOMap *r_io_map_add(RIO *io, int fd, int flags, ut64 delta, ut64 addr, ut64 size);
-// same as r_io_map_add but used when many maps need to be added. Call r_io_update when all maps have been added.
+R_API RIOMap *r_io_map_add_bottom(RIO *io, int fd, int flags, ut64 delta, ut64 addr, ut64 size);
 R_API RIOMap *r_io_map_get_at(RIO *io, ut64 addr);		//returns the map at vaddr with the highest priority
 R_API RIOMap *r_io_map_get_by_ref(RIO *io, RIOMapRef *ref);
-// update the internal state of RIO after a series of _batch operations
-R_API void r_io_update(RIO *io);
 R_API bool r_io_map_is_mapped(RIO* io, ut64 addr);
 R_API RIOMap *r_io_map_get_paddr(RIO *io, ut64 paddr);		//returns the map at paddr with the highest priority
 R_API void r_io_map_reset(RIO* io);
@@ -365,6 +363,7 @@ R_API RIOBank *r_io_bank_new(const char *name);
 R_API void r_io_bank_del(RIO *io, const ut32 bankid);
 R_API ut32 r_io_bank_first(RIO *io);
 R_API bool r_io_bank_add(RIO *io, RIOBank *bank);
+R_API void r_io_bank_clear(RIOBank *bank);
 R_API void r_io_bank_free(RIOBank *bank);
 R_API void r_io_bank_init(RIO *io);
 R_API void r_io_bank_fini(RIO *io);
@@ -372,7 +371,7 @@ R_API RIOBank *r_io_bank_get(RIO *io, const ut32 bankid);
 R_API bool r_io_bank_use(RIO *io, ut32 bankid);
 R_API bool r_io_bank_map_add_top(RIO *io, const ut32 bankid, const ut32 mapid);
 R_API bool r_io_bank_map_add_bottom(RIO *io, const ut32 bankid, const ut32 mapid);
-R_API bool r_io_bank_map_priorize (RIO *io, const ut32 bankid, const ut32 mapid);
+R_API bool r_io_bank_map_priorize(RIO *io, const ut32 bankid, const ut32 mapid);
 R_API bool r_io_bank_map_depriorize(RIO *io, const ut32 bankid, const ut32 mapid);
 R_API bool r_io_bank_update_map_boundaries(RIO *io, const ut32 bankid, const ut32 mapid, ut64 ofrom, ut64 oto);
 R_API bool r_io_bank_locate(RIO *io, const ut32 bankid, ut64 *addr, const ut64 size, ut64 load_align);
@@ -394,7 +393,7 @@ R_API RList *r_io_open_many(RIO *io, const char *uri, int flags, int mode);
 R_API RIODesc* r_io_open_buffer(RIO *io, RBuffer *b, int flags, int mode);
 R_API bool r_io_close(RIO *io);
 R_API bool r_io_reopen(RIO *io, int fd, int flags, int mode);
-R_API bool r_io_close_all(RIO *io);
+R_API void r_io_close_all(RIO *io);
 R_API int r_io_pread_at(RIO *io, ut64 paddr, ut8 *buf, int len);
 R_API int r_io_pwrite_at(RIO *io, ut64 paddr, const ut8 *buf, int len);
 R_API bool r_io_vread_at(RIO *io, ut64 vaddr, ut8 *buf, int len);
@@ -414,9 +413,9 @@ R_API bool r_io_set_write_mask(RIO *io, const ut8 *mask, int len);
 R_API void r_io_bind(RIO *io, RIOBind *bnd);
 R_API bool r_io_shift(RIO *io, ut64 start, ut64 end, st64 move);
 R_API ut64 r_io_seek(RIO *io, ut64 offset, int whence);
-R_API int r_io_fini(RIO *io);
+R_API void r_io_fini(RIO *io);
 R_API void r_io_free(RIO *io);
-#define r_io_bind_init(x) memset(&x,0,sizeof(x))
+#define r_io_bind_init(x) memset (&(x), 0, sizeof (x))
 
 R_API bool r_io_plugin_init(RIO *io);
 R_API bool r_io_plugin_add(RIO *io, RIOPlugin *plugin);
@@ -482,7 +481,7 @@ R_API int r_io_desc_write_at(RIODesc *desc, ut64 addr, const ut8 *buf, int len);
 
 /* lifecycle */
 R_IPI bool r_io_desc_init(RIO *io);
-R_IPI bool r_io_desc_fini(RIO *io);
+R_IPI void r_io_desc_fini(RIO *io);
 
 /* io/cache.c */
 R_API int r_io_cache_invalidate(RIO *io, ut64 from, ut64 to);
@@ -547,7 +546,7 @@ R_API bool r_io_write_i(RIO* io, ut64 addr, ut64 *val, int size, bool endian);
 
 #if HAVE_PTRACE
 R_API long r_io_ptrace(RIO *io, r_ptrace_request_t request, pid_t pid, void *addr, r_ptrace_data_t data);
-R_API pid_t r_io_ptrace_fork(RIO *io, void (*child_callback)(void *), void *child_callback_user);
+R_API pid_t r_io_ptrace_fork(RIO *io, void(*child_callback)(void *), void *child_callback_user);
 R_API void *r_io_ptrace_func(RIO *io, void *(*func)(void *), void *user);
 #endif
 

@@ -56,9 +56,9 @@ static char *prompt(const char *str, const char *txt) {
 	return res;
 }
 
-static inline char *getformat (RCoreVisualTypes *vt, const char *k) {
-	return sdb_get (vt->core->anal->sdb_types,
-		sdb_fmt ("type.%s", k), 0);
+static inline char *getformat(RCoreVisualTypes *vt, const char *k) {
+	r_strf_var (key, 64, "type.%s", k);
+	return sdb_get (vt->core->anal->sdb_types, key, 0);
 }
 
 static char *colorize_asm_string(RCore *core, const char *buf_asm, int optype, ut64 addr) {
@@ -94,7 +94,7 @@ static char *colorize_asm_string(RCore *core, const char *buf_asm, int optype, u
 	return res;
 }
 
-static int rotate_nibble (const ut8 b, int dir) {
+static int rotate_nibble(const ut8 b, int dir) {
 	if (dir > 0) {
 		bool high = b >> 7;
 		return (b << 1) | high;
@@ -501,14 +501,14 @@ R_API bool r_core_visual_bit_editor(RCore *core) {
 		case 'H':
 			{
 				int y = R_MAX (x - 8, 0);
-				x = y - y%8;
+				x = y - y % 8;
 			}
 			break;
 		case 'L':
 		case 9:
 			{
 				int y = R_MIN (x + 8, nbits - 8);
-				x = y - y%8;
+				x = y - y % 8;
 			}
 			break;
 		case 'j':
@@ -532,7 +532,7 @@ R_API bool r_core_visual_bit_editor(RCore *core) {
 			buf[x/8] = rotate_nibble (buf [(x / 8)], -1);
 			break;
 		case '<':
-			buf[x/8] = rotate_nibble (buf [(x / 8)], 1);
+			buf[x / 8] = rotate_nibble (buf [(x / 8)], 1);
 			break;
 		case 'i':
 			{
@@ -540,7 +540,7 @@ R_API bool r_core_visual_bit_editor(RCore *core) {
 				const char *line = r_line_readline ();
 				ut64 num = r_num_math (core->num, line);
 				if (num || (!num && *line == '0')) {
-					buf[x/8] = num;
+					buf[x / 8] = num;
 				}
 			}
 			break;
@@ -607,7 +607,7 @@ R_API bool r_core_visual_bit_editor(RCore *core) {
 }
 
 // belongs to r_core_visual_types
-static bool sdbforcb (void *p, const char *k, const char *v) {
+static bool sdbforcb(void *p, const char *k, const char *v) {
 	const char *pre = " ";
 	RCoreVisualTypes *vt = (RCoreVisualTypes*)p;
 	bool use_color = vt->core->print->flags & R_PRINT_FLAGS_COLOR;
@@ -686,17 +686,14 @@ static bool sdbforcb (void *p, const char *k, const char *v) {
 			}
 			if (use_color && *pre == '>') {
 				r_cons_printf ("%s %s %s\n"Color_RESET, color_sel,
-					(vt->t_idx == vt->t_ctr)?
-					">":" ", k);
+					(vt->t_idx == vt->t_ctr)?  ">": " ", k);
 			} else {
-				r_cons_printf (" %s %s\n",
-					(vt->t_idx == vt->t_ctr)?
-					">":" ", k);
+				r_cons_printf (" %s %s\n", (vt->t_idx == vt->t_ctr)?  ">": " ", k);
 			}
 		}
 		vt->t_ctr ++;
 	}
-        return true;
+	return true;
 }
 
 R_API int r_core_visual_types(RCore *core) {
@@ -947,7 +944,7 @@ R_API bool r_core_visual_hudclasses(RCore *core) {
 		free (res);
 	}
 	r_list_free (list);
-	return res != NULL;
+	return res;
 }
 
 static bool hudstuff_append(RFlagItem *fi, void *user) {
@@ -989,7 +986,7 @@ R_API bool r_core_visual_hudstuff(RCore *core) {
 		free (res);
 	}
 	r_list_free (list);
-	return res != NULL;
+	return res;
 }
 
 static bool r_core_visual_config_hud(RCore *core) {
@@ -1688,7 +1685,7 @@ R_API int r_core_visual_view_rop(RCore *core) {
 		RStrBuf *sb = r_strbuf_new ("");
 		char *msg;
 		r_list_foreach (core->ropchain, iter, msg) {
-			if (core->rasm->bits == 64) {
+			if (core->rasm->config->bits == 64) {
 				ut64 n = r_num_get (NULL, msg);
 				n = r_read_be64 (&n);
 				r_strbuf_appendf (sb, "%016"PFMT64x, n);
@@ -1993,7 +1990,7 @@ R_API int r_core_visual_trackflags(RCore *core) {
 		} else {
 			r_cons_printf ("Flag spaces:\n\n");
 			hit = 0;
-			RSpaceIter it;
+			RSpaceIter *it;
 			const RSpace *s, *cur = r_flag_space_cur (core->flags);
 			int i = 0;
 			r_flag_space_foreach (core->flags, it, s) {
@@ -2221,7 +2218,7 @@ R_API int r_core_visual_trackflags(RCore *core) {
 	return true;
 }
 
-R_API int r_core_visual_comments (RCore *core) {
+R_API int r_core_visual_comments(RCore *core) {
 	char *str;
 	char cmd[512], *p = NULL;
 	int ch, option = 0;
@@ -2917,7 +2914,7 @@ static void function_rename(RCore *core, ut64 addr, const char *name) {
 	}
 }
 
-static void variable_rename (RCore *core, ut64 addr, int vindex, const char *name) {
+static void variable_rename(RCore *core, ut64 addr, int vindex, const char *name) {
 	RAnalFunction* fcn = r_anal_get_fcn_in (core->anal, addr, R_ANAL_FCN_TYPE_NULL);
 	ut64 a_tmp = core->offset;
 	int i = 0;
@@ -2937,7 +2934,7 @@ static void variable_rename (RCore *core, ut64 addr, int vindex, const char *nam
 	r_list_free (list);
 }
 
-static void variable_set_type (RCore *core, ut64 addr, int vindex, const char *type) {
+static void variable_set_type(RCore *core, ut64 addr, int vindex, const char *type) {
 	RAnalFunction* fcn = r_anal_get_fcn_in (core->anal, addr, R_ANAL_FCN_TYPE_NULL);
 	RList *list = r_anal_var_all_list (core->anal, fcn);
 	RListIter *iter;
@@ -3052,7 +3049,7 @@ static ut64 var_variables_show(RCore* core, int idx, int *vindex, int show, int 
 				{
 					RRegItem *r = r_reg_index_get (core->anal->reg, var->delta);
 					if (!r) {
-						eprintf ("Register not found");
+						eprintf ("Register not found\n");
 						break;
 					}
 					r_cons_printf ("%sarg %s %s @ %s\n",
@@ -3098,13 +3095,13 @@ static const char *printCmds[lastPrintMode] = {
 	"pdf", "pd $r", "afi", "pdsf", "pdc", "pdr"
 };
 
-static void r_core_visual_anal_refresh_column (RCore *core, int colpos) {
+static void r_core_visual_anal_refresh_column(RCore *core, int colpos) {
 	const ut64 addr = (level != 0 && level != 1)
 		? core->offset
 		: var_functions_show (core, option, 0, colpos);
 	// RAnalFunction* fcn = r_anal_get_fcn_in(core->anal, addr, R_ANAL_FCN_TYPE_NULL);
 	int h, w = r_cons_get_size (&h);
-	// int sz = (fcn)? R_MIN (r_anal_fcn_size (fcn), h * 15) : 16; // max instr is 15 bytes.
+	// int sz = (fcn)? R_MIN (r_anal_function_size (fcn), h * 15) : 16; // max instr is 15 bytes.
 
 	const char *cmd;
 	if (printMode > 0 && printMode < lastPrintMode) {
@@ -3166,7 +3163,7 @@ static const char *help_visual_anal_keys[] = {
 	NULL
 };
 
-static void r_core_vmenu_append_help (RStrBuf *p, const char **help) {
+static void r_core_vmenu_append_help(RStrBuf *p, const char **help) {
 	int i;
 	RConsContext *cons_ctx = r_cons_singleton ()->context;
 	const char *pal_args_color = cons_ctx->color_mode ? cons_ctx->pal.args : "",
@@ -3180,7 +3177,7 @@ static void r_core_vmenu_append_help (RStrBuf *p, const char **help) {
 	}
 }
 
-static ut64 r_core_visual_anal_refresh (RCore *core) {
+static ut64 r_core_visual_anal_refresh(RCore *core) {
 	if (!core) {
 		return 0LL;
 	}
@@ -3269,7 +3266,7 @@ static ut64 r_core_visual_anal_refresh (RCore *core) {
 	return addr;
 }
 
-static void r_core_visual_anal_refresh_oneshot (RCore *core) {
+static void r_core_visual_anal_refresh_oneshot(RCore *core) {
 	r_core_task_enqueue_oneshot (&core->tasks, (RCoreTaskOneShot) r_core_visual_anal_refresh, core);
 }
 
@@ -3301,7 +3298,7 @@ R_API void r_core_visual_debugtraces(RCore *core, const char *input) {
 		//int rows = r_cons_get_size (NULL);
 		r_core_cmdf (core, "dtd %d", delta);
 		r_cons_visual_flush ();
-		char ch ;
+		signed char ch;
 		if (input && *input) {
 			ch = *input;
 			input++;
@@ -3653,21 +3650,22 @@ R_API void r_core_visual_anal(RCore *core, const char *input) {
 				}
 			}
 			break;
-		case 'g': {
+		case 'g':
+			{
 			r_core_visual_showcursor (core, true);
 			r_core_visual_offset (core);        // change the seek to selected offset
 			RListIter *iter;		   // change the current option to selected seek
 			RAnalFunction *fcn;
 			int i = 0;
 			r_list_foreach (core->anal->fcns, iter, fcn) {
-				if (core->offset ==  fcn->addr){
+				if (core->offset == fcn->addr){
 					option = i;
 				}
 				i++;
 			}
 			r_core_visual_showcursor (core, false);
-		}
-		        break;
+			}
+			break;
 		case 'G':
 			r_core_seek (core, addr, SEEK_SET);
 			goto beach;
@@ -3753,7 +3751,7 @@ R_API void r_core_seek_next(RCore *core, const char *type) {
 	}
 }
 
-R_API void r_core_seek_previous (RCore *core, const char *type) {
+R_API void r_core_seek_previous(RCore *core, const char *type) {
 	RListIter *iter;
 	ut64 next = 0;
 	if (strstr (type, "opc")) {
@@ -3786,7 +3784,8 @@ static void define_data_ntimes(RCore *core, ut64 off, int times, int type, int t
 	if (times < 1) {
 		times = 1;
 	}
-	r_meta_del (core->anal, R_META_TYPE_ANY, off, typesize * times);
+	ut64 amount = ((ut64)typesize) * times;
+	r_meta_del (core->anal, R_META_TYPE_ANY, off, amount);
 	for (i = 0; i < times; i++, off += typesize) {
 		r_meta_set (core->anal, R_META_TYPE_DATA, off, type, "");
 	}
@@ -3799,7 +3798,7 @@ static bool isDisasmPrint(int mode) {
 static void handleHints(RCore *core) {
 	//TODO extend for more anal hints
 	int i = 0;
-	char ch[64] = R_EMPTY;
+	char ch[64] = {0};
 	const char *lines[] = {"[dh]- Define anal hint:"
 		," b [16,32,64]     set bits hint"
 		, NULL};
@@ -4042,7 +4041,8 @@ onemoretime:
 			RAnalVar *var = r_anal_get_used_function_var (core->anal, op.addr);
 			if (var) {
 	//			q = r_str_newf ("?i Rename variable %s to;afvn %s `yp`", op.var->name, op.var->name);
-				char *newname = r_cons_input (sdb_fmt ("New variable name for '%s': ", var->name));
+				r_strf_var (prompt, 128, "New variable name for '%s': ", var->name);
+				char *newname = r_cons_input (prompt);
 				if (newname && *newname) {
 					r_anal_var_rename (var, newname, true);
 					free (newname);
@@ -4269,7 +4269,7 @@ onemoretime:
 		}
 		break;
 	case 'v':
-        {
+	{
 		ut64 N;
 		char *endptr = NULL;
 		char *end_off = r_cons_input ("Last hexadecimal digits of instruction: ");
@@ -4317,7 +4317,8 @@ onemoretime:
 		}
 
 		if (var) {
-			char *newname = r_cons_input (sdb_fmt ("New variable name for '%s': ", var->name));
+			r_strf_var (promptstr, 128, "New variable name for '%s': ", var->name);
+			char *newname = r_cons_input (promptstr);
 			if (newname && *newname) {
 				r_anal_var_rename (var, newname, true);
 				free (newname);
@@ -4329,7 +4330,7 @@ onemoretime:
 
 		r_anal_op_free (op);
 		break;
-        }
+	}
 	case 'Q':
 	case 'q':
 	default:
@@ -4400,8 +4401,8 @@ R_API void r_core_visual_colors(RCore *core) {
 			"' to change foreground/background color\n");
 		r_cons_printf ("# Export colorscheme with command 'ec* > filename'\n");
 		r_cons_printf ("# Preview command: '%s' - Press 'c' to change it\n", preview_cmd);
-		r_cons_printf ("# Selected colorscheme : %s  - Use 'hl' or left/right arrow keys to change colorscheme\n", r_str_get_fail (curtheme, "default"));
-		r_cons_printf ("# Selected element: %s  - Use 'jk' or up/down arrow keys to change element\n", k);
+		r_cons_printf ("# Theme (eco): %s  - Use 'hl' or left/right arrow keys to change colorscheme\n", r_str_get_fail (curtheme, "default"));
+		r_cons_printf ("# Item (%s)  - Use 'jk' or up/down arrow keys to change element\n", k);
 		r_cons_printf ("# ec %s %s # %d (\\x1b%.*s)",
 			k, color, atoi (cstr+7), esc ? (int)(esc - cstr - 1) : (int)strlen (cstr + 1), cstr+1);
 		if (esc) {
@@ -4455,6 +4456,9 @@ R_API void r_core_visual_colors(RCore *core) {
 			opt = r_cons_pal_len () - 1;
 			break;
 		case ':':
+			r_core_visual_prompt_input (core);
+			break;
+		case ',':
 			r_cons_pal_random ();
 			break;
 		case '.':
@@ -4465,7 +4469,13 @@ R_API void r_core_visual_colors(RCore *core) {
 		case 'c':
 			r_line_set_prompt ("Preview command> ");
 			r_cons_show_cursor (true);
-			r_cons_fgets (preview_cmd, sizeof (preview_cmd), 0, NULL);
+			{
+				char newcmd[128] = {0};
+				r_cons_fgets (newcmd, sizeof (newcmd), 0, NULL);
+				if (*newcmd) {
+					r_str_ncpy (preview_cmd, newcmd, sizeof (preview_cmd) - 1);
+				}
+			}
 			r_cons_show_cursor (false);
 		}
 		if (opt != oopt) {

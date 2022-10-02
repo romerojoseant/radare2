@@ -1,9 +1,9 @@
-/* radare2 - LGPL - Copyright 2013-2019 - pancake */
+/* radare2 - LGPL - Copyright 2013-2022 - pancake */
 
 #include <r_anal.h>
 #include <r_lib.h>
-#include <capstone.h>
-#include <ppc.h>
+#include <capstone/capstone.h>
+#include <capstone/ppc.h>
 #include "../../asm/arch/ppc/libvle/vle.h"
 
 #define SPR_HID0 0x3f0 /* Hardware Implementation Register 0 */
@@ -208,13 +208,14 @@ static void opex(RStrBuf *buf, csh handle, cs_insn *insn) {
 
 static bool set_reg_profile(RAnal *anal) {
 	const char *p = NULL;
-	if (anal->bits == 32) {
+	if (anal->config->bits == 32) {
 		p =
 			"=PC	pc\n"
 			"=SP	r1\n"
 			"=BP	r31\n"
 			"=SR	srr1\n" // status register ??
 			"=SN	r3\n" // also for ret
+			"=R0	r3\n" // ret
 			"=A0	r3\n" // also for ret
 			"=A1	r4\n"
 			"=A2	r5\n"
@@ -315,6 +316,7 @@ static bool set_reg_profile(RAnal *anal) {
 			"=SP	r1\n"
 			"=SR	srr1\n" // status register ??
 			"=SN	r0\n" // also for ret
+			"=R0	r3\n" // ret
 			"=A0	r3\n" // also for ret
 			"=A1	r4\n"
 			"=A2	r5\n"
@@ -600,12 +602,13 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 	int n, ret;
 	cs_insn *insn;
 	char *op1;
-	int mode = (a->bits == 64) ? CS_MODE_64 : (a->bits == 32) ? CS_MODE_32 : 0;
-	mode |= a->big_endian ? CS_MODE_BIG_ENDIAN : CS_MODE_LITTLE_ENDIAN;
+	const int bits = a->config->bits;
+	int mode = (bits == 64) ? CS_MODE_64 : (bits == 32) ? CS_MODE_32 : 0;
+	mode |= a->config->big_endian ? CS_MODE_BIG_ENDIAN : CS_MODE_LITTLE_ENDIAN;
 
-	if (a->cpu && strncmp (a->cpu, "vle", 3) == 0) {
+	if (a->config->cpu && strncmp (a->config->cpu, "vle", 3) == 0) {
 		// vle is big-endian only
-		if (!a->big_endian) {
+		if (!a->config->big_endian) {
 			return -1;
 		}
 		ret = analop_vle (a, op, addr, buf, len);
@@ -614,11 +617,11 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 		}
 	}
 
-	if (mode != omode || a->bits != obits) {
+	if (mode != omode || bits != obits) {
 		cs_close (&handle);
 		handle = 0;
 		omode = mode;
-		obits = a->bits;
+		obits = bits;
 	}
 	if (handle == 0) {
 		ret = cs_open (CS_ARCH_PPC, mode, &handle);
@@ -640,7 +643,7 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 		struct Getarg gop = {
 			.handle = handle,
 			.insn = insn,
-			.bits = a->bits
+			.bits = bits
 		};
 		op->size = insn->size;
 		op->id = insn->id;
@@ -700,7 +703,7 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 		case PPC_INS_EXTSB:
 			op->sign = true;
 			op->type = R_ANAL_OP_TYPE_MOV;
-			if (a->bits == 64) {
+			if (a->config->bits == 64) {
 				esilprintf (op, "%s,0x80,&,?{,0xFFFFFFFFFFFFFF00,%s,|,%s,=,}", ARG (1), ARG (1), ARG (0));
 			} else {
 				esilprintf (op, "%s,0x80,&,?{,0xFFFFFF00,%s,|,%s,=,}", ARG (1), ARG (1), ARG (0));
@@ -708,7 +711,7 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 			break;
 		case PPC_INS_EXTSH:
 			op->sign = true;
-			if (a->bits == 64) {
+			if (a->config->bits == 64) {
 				esilprintf (op, "%s,0x8000,&,?{,0xFFFFFFFFFFFF0000,%s,|,%s,=,}", ARG (1), ARG (1), ARG (0));
 			} else {
 				esilprintf (op, "%s,0x8000,&,?{,0xFFFF0000,%s,|,%s,=,}", ARG (1), ARG (1), ARG (0));
@@ -927,8 +930,11 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 			op->type = R_ANAL_OP_TYPE_ADD;
 			esilprintf (op, "%s,%s,+,%s,=", ARG (2), ARG (1), ARG (0));
 			break;
-		case PPC_INS_ADDE:
 		case PPC_INS_ADDIS:
+			op->type = R_ANAL_OP_TYPE_ADD;
+			esilprintf (op, "16,%s,<<,%s,+,%s,=", ARG (2), ARG (1), ARG (0));
+			break;
+		case PPC_INS_ADDE:
 		case PPC_INS_ADDME:
 		case PPC_INS_ADDZE:
 			op->type = R_ANAL_OP_TYPE_ADD;
@@ -1329,7 +1335,8 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 }
 
 static int archinfo(RAnal *a, int q) {
-	if (a->cpu && !strncmp (a->cpu, "vle", 3)) {
+	const char *cpu = a->config->cpu;
+	if (cpu && !strncmp (cpu, "vle", 3)) {
 		return 2;
 	}
 	return 4;

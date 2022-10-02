@@ -33,17 +33,17 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(*a))
 
 // TODO : an conf to chose between abi or numeric
-static const char * const *riscv_gpr_names = riscv_gpr_names_abi;
-static const char * const *riscv_fpr_names = riscv_fpr_names_abi;
+static const char *const *riscv_gpr_names = riscv_gpr_names_abi;
+static const char *const *riscv_fpr_names = riscv_fpr_names_abi;
 static int init = 0;
 
-static void arg_p (char *buf, unsigned long val, const char* const* array, size_t size) {
+static void arg_p(char *buf, unsigned long val, const char* const* array, size_t size) {
 	const char *s = (val >= size || array[val]) ? array[val] : "unknown";
 	sprintf (buf+strlen (buf), "%s", s);
 }
 
 /* Print insn arguments for 32/64-bit code.  */
-static void get_insn_args (char *buf, const char *d, insn_t l, uint64_t pc) {
+static void get_insn_args(char *buf, const char *d, insn_t l, uint64_t pc) {
 	int rs1 = (l >> OP_SH_RS1) & OP_MASK_RS1;
 	int rd = (l >> OP_SH_RD) & OP_MASK_RD;
 	uint64_t target;
@@ -267,7 +267,7 @@ static void get_insn_args (char *buf, const char *d, insn_t l, uint64_t pc) {
 	}
 }
 
-static struct riscv_opcode *get_opcode (insn_t word) {
+static struct riscv_opcode *get_opcode(insn_t word) {
 	struct riscv_opcode *op;
 	static const struct riscv_opcode *riscv_hash[OP_MASK_OP + 1] = {0};
 
@@ -278,7 +278,7 @@ static struct riscv_opcode *get_opcode (insn_t word) {
 			if (!riscv_hash[OP_HASH_IDX (op->match)]) {
 				riscv_hash[OP_HASH_IDX (op->match)] = op;
 			}
-		} 
+		}
 		init = 1;
 	}
 
@@ -306,7 +306,8 @@ static int riscv_disassemble(RAsm *a, RAsmOp *rop, insn_t word, int xlen, int le
 			get_insn_args (r_asm_op_get_asm (rop), op->args, word, a->pc);
 			return 0;
 		}
-		r_asm_op_set_asm (rop, sdb_fmt ("invalid word(%"PFMT64x")", (ut64)word));
+		r_strf_buffer (32);
+		r_asm_op_set_asm (rop, r_strf ("invalid word(%"PFMT64x")", (ut64)word));
 		return -1;
 	}
 	return 0;
@@ -322,6 +323,6 @@ static int riscv_dis(RAsm *a, RAsmOp *rop, const ut8 *buf, ut64 len) {
 	if (len < insn_len) {
 		return -1;
 	}
-	riscv_disassemble (a, rop, insn, a->bits, len);
+	riscv_disassemble (a, rop, insn, a->config->bits, len);
 	return insn_len;
 }

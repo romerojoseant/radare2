@@ -276,7 +276,7 @@ R_API void r_fs_close(RFS* fs, RFSFile* file) {
 R_API int r_fs_write(RFS* fs, RFSFile* file, ut64 addr, const ut8 *data, int len) {
 	r_return_val_if_fail (fs && file && data && len >= 0, -1);
 	if (fs && file) {
-		// TODO: fill file->data ? looks like dupe of rbuffer 
+		// TODO: fill file->data ? looks like dupe of rbuffer
 		if (file->p && file->p->write) {
 			return file->p->write (file, addr, data, len);;
 		}
@@ -689,7 +689,7 @@ R_API bool r_fs_check(RFS *fs, const char *p) {
 	r_return_val_if_fail (fs && p, false);
 	RFSRoot *root;
 	RListIter *iter;
-	char* path = strdup (p);
+	char *path = strdup (p);
 	if (path) {
 		r_str_trim_path (path);
 		r_list_foreach (fs->roots, iter, root) {

@@ -42,17 +42,15 @@ static ut64 t9_pre = UT64_MAX;
 #define ES_ADD_CK32_OVERF(x, y, z) es_add_ck (op, x, y, z, 32)
 #define ES_ADD_CK64_OVERF(x, y, z) es_add_ck (op, x, y, z, 64)
 
-static inline void es_sign_n_64(RAnal *a, RAnalOp *op, const char *arg, int bit)
-{
-	if (a->bits == 64) {
+static inline void es_sign_n_64(RAnal *a, RAnalOp *op, const char *arg, int bit) {
+	if (a->config->bits == 64) {
 		r_strbuf_appendf (&op->esil, ",%d,%s,~,%s,=,", bit, arg, arg);
 	} else {
 		r_strbuf_append (&op->esil,",");
 	}
 }
 
-static inline void es_add_ck(RAnalOp *op, const char *a1, const char *a2, const char *re, int bit)
-{
+static inline void es_add_ck(RAnalOp *op, const char *a1, const char *a2, const char *re, int bit) {
 	ut64 mask = 1ULL << (bit-1);
 	r_strbuf_appendf (&op->esil,
 		"%d,0x%" PFMT64x ",%s,%s,^,&,>>,%d,0x%" PFMT64x ",%s,%s,+,&,>>,|,1,==,$z,?{,$$,1,TRAP,}{,%s,%s,+,%s,=,}",
@@ -829,7 +827,7 @@ static int analop_esil(RAnal *a, RAnalOp *op, ut64 addr, gnu_insn*insn) {
 			break;
 		case MIPS_INS_J:
 			r_strbuf_appendf (&op->esil, ES_TRAP_DS () "" ES_J ("%s"), J_REG (jump));
-		case MIPS_INS_B: 
+		case MIPS_INS_B:
 			// jump to address with conditional
 			r_strbuf_appendf (&op->esil, ES_TRAP_DS () "" ES_J ("%s"), I_REG (jump));
 			break;
@@ -872,7 +870,7 @@ static int analop_esil(RAnal *a, RAnalOp *op, ut64 addr, gnu_insn*insn) {
 				I_REG (rs), I_REG (jump));
 			break;
 		case MIPS_INS_BLTZAL:
-			r_strbuf_appendf (&op->esil, ES_TRAP_DS () "1," ES_IS_NEGATIVE ("%s") ",==,$z,?{," ES_CALL_D ("%s") ",}", 
+			r_strbuf_appendf (&op->esil, ES_TRAP_DS () "1," ES_IS_NEGATIVE ("%s") ",==,$z,?{," ES_CALL_D ("%s") ",}",
 				I_REG (rs), I_REG (jump));
 			break;
 		case MIPS_INS_BLTZ:
@@ -917,7 +915,7 @@ static int analop_esil(RAnal *a, RAnalOp *op, ut64 addr, gnu_insn*insn) {
 		case MIPS_INS_NEGU:
 			break;
 		/** signed -- sets overflow flag */
-		case MIPS_INS_ADD: 
+		case MIPS_INS_ADD:
 			ES_ADD_CK32_OVERF(R_REG (rs), R_REG (rt), R_REG (rd));
 		break;
 		case MIPS_INS_ADDI:
@@ -947,7 +945,7 @@ static int analop_esil(RAnal *a, RAnalOp *op, ut64 addr, gnu_insn*insn) {
 		case MIPS_INS_LUI:
 			r_strbuf_appendf (&op->esil, "%s0000,%s,=",I_REG (imm), I_REG (rt));
 			break;
-		case MIPS_INS_LB: 
+		case MIPS_INS_LB:
 			op->sign = true;	//To load a byte from memory as a signed value
 			/* fallthrough */
 		case MIPS_INS_LBU:
@@ -1054,7 +1052,7 @@ static int analop_esil(RAnal *a, RAnalOp *op, ut64 addr, gnu_insn*insn) {
 static int mips_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *b, int len, RAnalOpMask mask) {
 	ut32 opcode;
 	// WIP char buf[10]; int reg; int family;
-	int optype, oplen = (anal->bits==16)?2:4;
+	int oplen = (anal->config->bits == 16)? 2: 4;
 	const ut8 * buf;
 	gnu_insn insn;
 
@@ -1066,7 +1064,7 @@ static int mips_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *b, int len, R
 	op->size = oplen;
 	op->addr = addr;
 	// Be endian aware
-	opcode = r_read_ble32 (b, anal->big_endian);
+	opcode = r_read_ble32 (b, anal->config->big_endian);
 
 	// eprintf ("MIPS: %02x %02x %02x %02x (after endian: big=%d)\n", buf[0], buf[1], buf[2], buf[3], anal->big_endian);
 	if (opcode == 0) {
@@ -1077,7 +1075,7 @@ static int mips_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *b, int len, R
 	opcode = r_swap_ut32(opcode);
 	buf = (ut8 *) & opcode;
 
-	optype = (buf[0]>>2);
+	int optype = buf[0] >> 2;
 	insn.optype = optype;
 	insn.id = 0;
 
@@ -1372,7 +1370,7 @@ static int mips_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *b, int len, R
 		snprintf ((char *)insn.i_reg.imm, REG_BUF_MAX, "%"PFMT32d, imm);
 
 		switch (optype) {
-		case 1: 
+		case 1:
 			switch (rt) {
 				case 0: //bltz
 					insn.id = MIPS_INS_BLTZ;
@@ -1677,7 +1675,7 @@ static int mips_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *b, int len, R
 static bool mips_set_reg_profile(RAnal* anal){
      const char *p =
 #if 0
-          "=PC    pc\n"
+	  "=PC    pc\n"
 	  "=SP    sp\n"
 	  "=A0    a0\n"
 	  "=A1    a1\n"
@@ -1787,7 +1785,7 @@ RAnalPlugin r_anal_plugin_mips_gnu = {
 
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct radare_plugin = {
-        .type = R_LIB_TYPE_ANAL,
-        .data = &r_anal_plugin_mips_gnu
+	.type = R_LIB_TYPE_ANAL,
+	.data = &r_anal_plugin_mips_gnu
 };
 #endif

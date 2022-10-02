@@ -1,3 +1,63 @@
+NAME=m1slice
+ARGS=-a x86
+FILE=bins/mach0/ls-m1
+CMDS=<<EOF
+pd 2
+ie
+EOF
+EXPECT=<<EOF
+            ;-- main:
+            ;-- entry0:
+            ;-- func.100003c0c:
+            0x100003c0c      55             push rbp
+            0x100003c0d      4889e5         mov rbp, rsp
+[Entrypoints]
+vaddr=0x100003c0c paddr=0x00007c0c haddr=0x00000658 type=program
+
+1 entrypoints
+EOF
+RUN
+
+NAME=m1slice.v35
+ARGS=-a arm.v35
+FILE=bins/mach0/ls-m1
+CMDS=<<EOF
+pd 2
+ie
+EOF
+EXPECT=<<EOF
+            ;-- main:
+            ;-- entry0:
+            ;-- func.100003a90:
+            0x100003a90      7f2303d5       pacibsp
+            0x100003a94      fc6fbaa9       stp x28, x27, [sp,  -0x60]!
+[Entrypoints]
+vaddr=0x100003a90 paddr=0x0001ba90 haddr=0x00000600 type=program
+
+1 entrypoints
+EOF
+RUN
+
+NAME=m1slice.v35
+ARGS=-a arm.404
+FILE=bins/mach0/ls-m1
+CMDS=<<EOF
+pd 2
+ie
+EOF
+EXPECT=<<EOF
+            ;-- main:
+            ;-- entry0:
+            ;-- func.100003a90:
+            0x100003a90      7f2303d5       pacibsp
+            0x100003a94      fc6fbaa9       stp x28, x27, [sp, #-0x60]!
+[Entrypoints]
+vaddr=0x100003a90 paddr=0x0001ba90 haddr=0x00000600 type=program
+
+1 entrypoints
+EOF
+RUN
+
 NAME=oon
 FILE=bins/mach0/mac-ls2
 CMDS=<<EOF
@@ -114,8 +174,6 @@ RUN
 NAME=o -
 FILE=malloc://1024
 CMDS=<<EOF
-e file.nowarn=true
-e file.loadmethod=append
 o -;o~?
 EOF
 EXPECT=<<EOF
@@ -304,7 +362,7 @@ bins/elf/libverifyPass.so
 bins/elf/libc.so.6
 EOF
 CMDS=<<EOF
-ob~[0-1]
+ob~[1-2]
 ?e
 ob 1; i~^fd
 ob 2; i~^fd
@@ -341,8 +399,8 @@ EXPECT=<<EOF
 
 0x00000010  2021 2223 2425 2627 2829 2a2b 2c2d 2e2f   !"#$%&'()*+,-./
 
-* 2 fd: 4 +0x00000000 0x00000000 - 0x000000ff rwx 
-- 1 fd: 3 +0x00000000 0x00000000 - 0x000001ff rwx 
+* 2 fd: 4 +0x00000000 0x00000000 - 0x000000ff rwx
+- 1 fd: 3 +0x00000000 0x00000000 - 0x000001ff rwx
 
 0x00000010  1011 1213 1415 1617 1819 1a1b 1c1d 1e1f  ................
 EOF
@@ -357,7 +415,7 @@ o: 1024
 ob
 EOF
 EXPECT=<<EOF
-0 3 x86-64 ba:0x00000000 sz:1024 malloc://1024
+* 0 3 x86-64 ba:0x00000000 sz:1024 malloc://1024
 EOF
 RUN
 
@@ -493,7 +551,6 @@ mode     rwx
 format   any
 iorw     true
 block    0x100
-
 EOF
 RUN
 
@@ -514,4 +571,30 @@ Cannot find file nonfile
 Missing argument
 EOF
 BROKEN=1
+RUN
+
+NAME=ob *
+FILE=bins/elf/ls
+CMDS=<<EOF
+is~?
+o bins/elf/ezpz
+is~?
+?e --
+ob *
+is~?
+?e --
+ob 0
+is~?
+ob 1
+is~?
+EOF
+EXPECT=<<EOF
+133
+134
+--
+267
+--
+133
+134
+EOF
 RUN

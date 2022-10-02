@@ -16,7 +16,7 @@ static unsigned long Offset = 0;
 static RStrBuf *buf_global = NULL;
 static unsigned char bytes[4];
 
-static int ppc_buffer_read_memory (bfd_vma memaddr, bfd_byte *myaddr, ut32 length, struct disassemble_info *info) {
+static int ppc_buffer_read_memory(bfd_vma memaddr, bfd_byte *myaddr, ut32 length, struct disassemble_info *info) {
 	int delta = (memaddr - Offset);
 	if (delta < 0) {
 		return -1;      // disable backward reads
@@ -28,7 +28,7 @@ static int ppc_buffer_read_memory (bfd_vma memaddr, bfd_byte *myaddr, ut32 lengt
 	return 0;
 }
 
-static int symbol_at_address(bfd_vma addr, struct disassemble_info * info) {
+static int symbol_at_address(bfd_vma addr, struct disassemble_info *info) {
 	return 0;
 }
 
@@ -52,10 +52,11 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	/* prepare disassembler */
 	memset (&disasm_obj, '\0', sizeof (struct disassemble_info));
 	*options = 0;
-	if (!R_STR_ISEMPTY (a->cpu)) {
+	const int bits = a->config->bits;
+	if (!R_STR_ISEMPTY (a->config->cpu)) {
 		snprintf (options, sizeof (options), "%s,%s",
-			(a->bits == 64)? "64": "", a->cpu);
-	} else if (a->bits == 64){
+			(bits == 64)? "64": "", a->config->cpu);
+	} else if (bits == 64) {
 		r_str_ncpy (options, "64", sizeof (options));
 	}
 	disasm_obj.disassembler_options = options;
@@ -64,10 +65,10 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	disasm_obj.symbol_at_address_func = &symbol_at_address;
 	disasm_obj.memory_error_func = &memory_error_func;
 	disasm_obj.print_address_func = &generic_print_address_func;
-	disasm_obj.endian = !a->big_endian;
+	disasm_obj.endian = !a->config->big_endian;
 	disasm_obj.fprintf_func = &generic_fprintf_func;
 	disasm_obj.stream = stdout;
-	if (a->big_endian) {
+	if (a->config->big_endian) {
 		op->size = print_insn_big_powerpc ((bfd_vma)Offset, &disasm_obj);
 	} else {
 		op->size = print_insn_little_powerpc ((bfd_vma)Offset, &disasm_obj);

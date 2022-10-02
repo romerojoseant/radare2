@@ -527,7 +527,7 @@ e search.to = 0x10
 /m
 EOF
 EXPECT=<<EOF
-0x00000000 1 PE  for MS Windows Intel 80386 32-bit
+0x00000000 1 PE for MS Windows Intel 80386 32-bit
 EOF
 RUN
 
@@ -541,7 +541,7 @@ e search.to = 0x10
 /m
 EOF
 EXPECT=<<EOF
-0x00000000 1 PE  for MS Windows Intel 80386 32-bit
+0x00000000 1 PE for MS Windows Intel 80386 32-bit
 EOF
 RUN
 
@@ -1040,5 +1040,48 @@ wx 01020304 a5a5a5 bf
 EOF
 EXPECT=<<EOF
 0x00000005 hit0_0 a5a5bf
+EOF
+RUN
+
+NAME=/k at start
+FILE=-
+CMDS=<<EOF
+w AAABAAABAAA
+/k AAABAAA
+EOF
+EXPECT=<<EOF
+0x00000000 hit0_0 "AAABAAABAAA"
+EOF
+RUN
+
+NAME=/k with overlap, middle
+FILE=-
+CMDS=<<EOF
+w ZAAABAAABAAA
+/k AAABAAA
+EOF
+EXPECT=<<EOF
+0x00000001 hit0_0 "ZAAABAAABAAA"
+EOF
+RUN
+
+NAME=/k at end
+FILE=-
+CMDS=<<EOF
+w ZZZZAAABAAA
+/k AAABAAA
+EOF
+EXPECT=<<EOF
+0x00000004 hit0_0 "ZZZZAAABAAA"
+EOF
+RUN
+
+NAME=/m on Info
+FILE=bins/other/Info.plist
+CMDS=<<EOF
+/m
+EOF
+EXPECT=<<EOF
+0x00000000 1 Binary PLIST data stream
 EOF
 RUN

@@ -1,24 +1,20 @@
-/* radare - LGPL3 - Copyright 2016-2021 - FXTi */
+/* radare - LGPL3 - Copyright 2016-2022 - FXTi */
 
-#include <r_types.h>
 #include <r_lib.h>
-#include <r_util.h>
 #include <r_asm.h>
-
 #include "../../asm/arch/pyc/pyc_dis.h"
 
-static pyc_opcodes *ops = NULL;
+static R_TH_LOCAL pyc_opcodes *ops = NULL;
 
 static int archinfo(RAnal *anal, int query) {
-	if (!strcmp (anal->cpu, "x86")) {
+	if (!strcmp (anal->config->arch, "x86")) {
 		return -1;
 	}
-
 	switch (query) {
 	case R_ANAL_ARCHINFO_MIN_OP_SIZE:
-		return (anal->bits == 16)? 1: 2;
+		return (anal->config->bits == 16)? 1: 2;
 	case R_ANAL_ARCHINFO_MAX_OP_SIZE:
-		return (anal->bits == 16)? 3: 2;
+		return (anal->config->bits == 16)? 3: 2;
 	default:
 		return -1;
 	}
@@ -88,12 +84,13 @@ static int pyc_op(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *data, int len, RA
 	op->type = R_ANAL_OP_TYPE_ILL;
 	op->id = op_code;
 
-	if (!ops || !pyc_opcodes_equal (ops, a->cpu)) {
-		if (!(ops = get_opcode_by_version (a->cpu))) {
+	if (!ops || !pyc_opcodes_equal (ops, a->config->cpu)) {
+		if (!(ops = get_opcode_by_version (a->config->cpu))) {
 			return -1;
 		}
 	}
-	bool is_python36 = a->bits == 8;
+	int bits = a->config->bits;
+	bool is_python36 = bits == 8;
 	pyc_opcode_object *op_obj = &ops->opcodes[op_code];
 	if (!op_obj->op_name) {
 		op->type = R_ANAL_OP_TYPE_ILL;

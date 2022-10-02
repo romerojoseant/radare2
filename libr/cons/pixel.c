@@ -1,10 +1,10 @@
-/* radare2 - LGPL - Copyright 2021 - pancake */
+/* radare2 - LGPL - Copyright 2021-2022 - pancake */
 
 #include <r_cons.h>
 #include <r_util/r_print.h>
 
 R_API RConsPixel *r_cons_pixel_new(int w, int h) {
-	if (UT64_MUL_OVFCHK (w, h)) {
+	if (UT32_MUL_OVFCHK (w, h)) {
 		return NULL;
 	}
 	RConsPixel *p = R_NEW (RConsPixel);
@@ -13,8 +13,12 @@ R_API RConsPixel *r_cons_pixel_new(int w, int h) {
 	}
 	p->w = w;
 	p->h = h;
-	p->buf_size = w * h;
+	p->buf_size = ((size_t)w) * h;
 	p->buf = calloc (w, h);
+	if (!p->buf) {
+		free (p);
+		return NULL;
+	}
 	return p;
 }
 
@@ -25,7 +29,21 @@ R_API void r_cons_pixel_free(RConsPixel *p) {
 	}
 }
 
-R_API void r_cons_pixel_set(RConsPixel *p, int x, int y, int v) {
+R_API ut8 r_cons_pixel_get(RConsPixel *p, int x, int y) {
+	r_return_val_if_fail (p, 0);
+	if (x < 0 || x >= p->w) {
+		return 0;
+	}
+	if (y < 0 || y >= p->h) {
+		return 0;
+	}
+	int pos = x + (y * p->w);
+	if (pos > 0 && pos < p->buf_size) {
+		return p->buf[pos];
+	}
+	return 0;
+}
+R_API void r_cons_pixel_set(RConsPixel *p, int x, int y, ut8 v) {
 	r_return_if_fail (p);
 	if (x < 0 || x >= p->w) {
 		return;
@@ -94,7 +112,11 @@ R_API char *r_cons_pixel_tostring(RConsPixel *p) {
 	size_t x, y;
 	for (y = 0; y < p->h; y += 4) {
 		for (x = 0; x < p->w; x += 2) {
-			ut8 *X = p->buf + (x + (y * p->w));
+			size_t delta = x + ((y + 3) * p->w) + 1;
+			if (delta >= p->buf_size) {
+				continue;
+			}
+			ut8 *X = p->buf + (x + ((y + 0) * p->w));
 			int u = 0;
 			u |= (X[0]?$00:0);
 			u |= (X[1]?$01:0);

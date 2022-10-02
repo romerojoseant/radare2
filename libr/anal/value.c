@@ -42,7 +42,7 @@ R_API ut64 r_anal_value_to_ut64(RAnal *anal, RAnalValue *val) {
 	if (!val) {
 		return 0LL;
 	}
-	num = val->base + (val->delta*(val->mul?val->mul:1));
+	num = val->base + (val->delta * (val->mul ? val->mul : 1));
 	if (val->reg) {
 		num += r_reg_get_value (anal->reg, val->reg);
 	}
@@ -79,7 +79,7 @@ R_API int r_anal_value_set_ut64(RAnal *anal, RAnalValue *val, ut64 num) {
 	return false;							//is this necessary
 }
 
-R_API char *r_anal_value_to_string (RAnalValue *value) {
+R_API char *r_anal_value_to_string(RAnalValue *value) {
 	char *out = NULL;
 	if (value) {
 		out = r_str_new ("");

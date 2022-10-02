@@ -32,9 +32,9 @@ Usage Example:
 
 #if !__WINDOWS__
 static void env(const char *s, int f) {
-        char *a = r_str_newf ("%d", f);
-        r_sys_setenv (s, a);
-        free (a);
+	char *a = r_str_newf ("%d", f);
+	r_sys_setenv (s, a);
+	free (a);
 }
 #endif
 
@@ -306,7 +306,9 @@ R_API R2Pipe *r2pipe_open(const char *cmd) {
 				eprintf ("return code %d for %s\n", rc, cmd);
 			}
 			// trigger the blocking read
-			write (1, "\xff", 1);
+			if (write (1, "\xff", 1) != 1) {
+				rc = -1;
+			}
 			close (r2p->output[1]);
 			close (0);
 			close (1);
@@ -323,7 +325,7 @@ R_API R2Pipe *r2pipe_open(const char *cmd) {
 R_API char *r2pipe_cmd(R2Pipe *r2p, const char *str) {
 	r_return_val_if_fail (r2p && str, NULL);
 	if (!*str || !r2pipe_write (r2p, str)) {
-		perror ("r2pipe_write");
+		r_sys_perror ("r2pipe_write");
 		return NULL;
 	}
 	return r2pipe_read (r2p);

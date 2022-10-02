@@ -241,7 +241,7 @@ static int init_pdb7_root_stream(RPdb *pdb, int *root_page_list, int pages_amoun
 // pdb_stream->pdb_stream = (R_PDB_STREAM *) malloc(sizeof(R_PDB_STREAM));
 // init_r_pdb_stream(pdb_stream->pdb_stream, fp, pages, pages_amount, index, size, page_size);
 // pdb_stream->load = pLoad;
-// if (pLoad != NULL) {
+// if (pLoad) {
 // pLoad(pdb_stream, &(pdb_stream->pdb_stream->stream_file));
 // }
 // }
@@ -621,7 +621,7 @@ static void finish_pdb_parse(RPdb *pdb) {
 // printf("finish_pdb_parse()\n");
 }
 
-static SimpleTypeMode get_simple_type_mode (PDB_SIMPLE_TYPES type) {
+static SimpleTypeMode get_simple_type_mode(PDB_SIMPLE_TYPES type) {
 	ut32 value = type; // cast to unsigned for defined bitwise operations
 	/*   https://llvm.org/docs/PDB/TpiStream.html#type-indices
         .---------------------------.------.----------.
@@ -633,7 +633,7 @@ static SimpleTypeMode get_simple_type_mode (PDB_SIMPLE_TYPES type) {
 	return (value & 0x00000000F0000);
 }
 
-static SimpleTypeKind get_simple_type_kind (PDB_SIMPLE_TYPES type) {
+static SimpleTypeKind get_simple_type_kind(PDB_SIMPLE_TYPES type) {
 	ut32 value = type; // cast to unsigned for defined bitwise operations
 	/*   https://llvm.org/docs/PDB/TpiStream.html#type-indices
         .---------------------------.------.----------.
@@ -651,7 +651,7 @@ static SimpleTypeKind get_simple_type_kind (PDB_SIMPLE_TYPES type) {
  * @param member_format pointer to assert member format to
  * @return int -1 if it's unparsable, -2 if it should be skipped, 0 if all is correct
  */
-static int simple_type_to_format (const SLF_SIMPLE_TYPE *simple_type, char **member_format) {
+static int simple_type_to_format(const SLF_SIMPLE_TYPE *simple_type, char **member_format) {
 	SimpleTypeMode mode = get_simple_type_mode (simple_type->simple_type);
 	switch (mode) {
 	case DIRECT: {
@@ -834,7 +834,7 @@ static int build_member_format(STypeInfo *type_info, RStrBuf *format, RStrBuf *n
 	type_info = &under_type->type_data;
 
 	char *member_format = NULL;
-	char tmp_format[5] = { 0 }; // used as writable format buffer
+	char tmp_format[5] = {0}; // used as writable format buffer
 
 	switch (type_info->leaf_type) {
 	case eLF_SIMPLE_TYPE: {
@@ -1398,7 +1398,7 @@ static void print_gvars(RPdb *pdb, ut64 img_base, PJ *pj, int format) {
 			case 1:
 			case '*':
 			case 'r':
-				filtered_name = r_name_filter2 (r_str_trim_head_ro (name));
+				filtered_name = r_name_filter_dup (r_str_trim_head_ro (name));
 				pdb->cb_printf ("f pdb.%s = 0x%" PFMT64x " # %d %.*s\n",
 					filtered_name,
 					(ut64) (img_base + omap_remap ((omap) ? (omap->stream) : 0, gdata->offset + sctn_header->virtual_address)),

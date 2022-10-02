@@ -509,12 +509,12 @@ R_API RLibStruct radare_plugin = {
 #if __APPLE__
 // mach/mach_vm.h not available for iOS
 kern_return_t mach_vm_region_recurse (
-        vm_map_t target_task,
-        mach_vm_address_t *address,
-        mach_vm_size_t *size,
-        natural_t *depth,
-        vm_region_recurse_info_t info,
-        mach_msg_type_number_t *infoCnt
+	vm_map_t target_task,
+	mach_vm_address_t *address,
+	mach_vm_size_t *size,
+	natural_t *depth,
+	vm_region_recurse_info_t info,
+	mach_msg_type_number_t *infoCnt
 );
 // TODO: unify that implementation in a single reusable place
 void macosx_debug_regions (RIO *io, task_t task, mach_vm_address_t address, int max) {
@@ -706,11 +706,11 @@ exit:
 			perm |= R_PERM_X;
 		}
 
-		io->cb_printf (" %p - %p %s [off. %zu]\n",
+		io->cb_printf (" %p - %p %s [off. %" PFMT64u "]\n",
 				(void *)entry.kve_start,
 				(void *)entry.kve_end,
 				r_str_rwx_i (perm),
-				entry.kve_offset);
+				(ut64)entry.kve_offset);
 
 		self_sections[self_sections_count].from = entry.kve_start;
 		self_sections[self_sections_count].to = entry.kve_end;
@@ -821,11 +821,11 @@ exit:
 			perm |= R_PERM_X;
 		}
 
-		io->cb_printf (" %p - %p %s [off. %zu]\n",
+		io->cb_printf (" %p - %p %s [off. %" PFMT64u "]\n",
 				(void *)entry.ba.start,
 				(void *)entry.ba.end,
 				r_str_rwx_i (perm),
-				entry.ba.offset);
+				(ut64)entry.ba.offset);
 
 		self_sections[self_sections_count].from = entry.ba.start;
 		self_sections[self_sections_count].to = entry.ba.end;

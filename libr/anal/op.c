@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2010-2020 - pancake, nibble */
+/* radare - LGPL - Copyright 2010-2022 - pancake, nibble */
 
 #include <r_anal.h>
 #include <r_util.h>
@@ -87,18 +87,33 @@ static int defaultCycles(RAnalOp *op) {
 	}
 }
 
+R_API int r_anal_opasm(RAnal *anal, ut64 addr, const char *s, ut8 *outbuf, int outlen) {
+eprintf ("CALLING OPS %d\n", outlen);
+	if (anal && outbuf && outlen > 0 && anal->cur && anal->cur->opasm) {
+eprintf ("---CALLING OPS %d\n", outlen);
+		// use core binding to set asm.bits correctly based on the addr
+		// this is because of the hassle of arm/thumb
+		int ret = anal->cur->opasm (anal, addr, s, outbuf, outlen);
+		/* consider at least 1 byte to be part of the opcode */
+		return ret;
+	}
+	return 0;
+}
+
 R_API int r_anal_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int len, RAnalOpMask mask) {
 	r_anal_op_init (op);
 	r_return_val_if_fail (anal && op && len > 0, -1);
 
 	int ret = R_MIN (2, len);
 	if (len > 0 && anal->cur && anal->cur->op) {
-		//use core binding to set asm.bits correctly based on the addr
-		//this is because of the hassle of arm/thumb
+		// use core binding to set asm.bits correctly based on the addr
+		// this is because of the hassle of arm/thumb
+		// this causes the reg profile to be invalidated
 		if (anal && anal->coreb.archbits) {
 			anal->coreb.archbits (anal->coreb.core, addr);
 		}
-		if (anal->pcalign && addr % anal->pcalign) {
+		int pcalign = anal->config->pcalign;
+		if (pcalign && addr % pcalign) {
 			op->type = R_ANAL_OP_TYPE_ILL;
 			op->addr = addr;
 			// eprintf ("Unaligned instruction for %d bits at 0x%"PFMT64x"\n", anal->bits, addr);
@@ -126,7 +141,7 @@ R_API int r_anal_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 		if (anal->verbose) {
 			eprintf ("Warning: unhandled R_ANAL_OP_MASK_DISASM in r_anal_op\n");
 		}
-        }
+	}
 	if (mask & R_ANAL_OP_MASK_HINT) {
 		RAnalHint *hint = r_anal_hint_get (anal, addr);
 		if (hint) {
@@ -216,7 +231,7 @@ R_API bool r_anal_op_ismemref(int t) {
 }
 
 static struct optype {
-	int type;
+	const int type;
 	const char *name;
 } optypes[] = {
 	{ R_ANAL_OP_TYPE_IO, "io" },
@@ -229,7 +244,6 @@ static struct optype {
 	{ R_ANAL_OP_TYPE_CJMP, "cjmp" },
 	{ R_ANAL_OP_TYPE_MJMP, "mjmp" },
 	{ R_ANAL_OP_TYPE_CMP, "cmp" },
-	{ R_ANAL_OP_TYPE_IO, "cret" },
 	{ R_ANAL_OP_TYPE_ILL, "ill" },
 	{ R_ANAL_OP_TYPE_JMP, "jmp" },
 	{ R_ANAL_OP_TYPE_LEA, "lea" },
@@ -244,41 +258,42 @@ static struct optype {
 	{ R_ANAL_OP_TYPE_DIV, "div" },
 	{ R_ANAL_OP_TYPE_NOP, "nop" },
 	{ R_ANAL_OP_TYPE_NOT, "not" },
-	{ R_ANAL_OP_TYPE_NULL  , "null" },
-	{ R_ANAL_OP_TYPE_OR    , "or" },
-	{ R_ANAL_OP_TYPE_POP   , "pop" },
-	{ R_ANAL_OP_TYPE_PUSH  , "push" },
-	{ R_ANAL_OP_TYPE_REP   , "rep" },
-	{ R_ANAL_OP_TYPE_RET   , "ret" },
-	{ R_ANAL_OP_TYPE_ROL   , "rol" },
-	{ R_ANAL_OP_TYPE_ROR   , "ror" },
-	{ R_ANAL_OP_TYPE_SAL   , "sal" },
-	{ R_ANAL_OP_TYPE_SAR   , "sar" },
-	{ R_ANAL_OP_TYPE_SHL   , "shl" },
-	{ R_ANAL_OP_TYPE_SHR   , "shr" },
-	{ R_ANAL_OP_TYPE_STORE , "store" },
-	{ R_ANAL_OP_TYPE_SUB   , "sub" },
-	{ R_ANAL_OP_TYPE_SWI   , "swi" },
-	{ R_ANAL_OP_TYPE_CSWI  , "cswi" },
+	{ R_ANAL_OP_TYPE_NULL, "null" },
+	{ R_ANAL_OP_TYPE_OR, "or" },
+	{ R_ANAL_OP_TYPE_POP, "pop" },
+	{ R_ANAL_OP_TYPE_PUSH, "push" },
+	{ R_ANAL_OP_TYPE_REP, "rep" },
+	{ R_ANAL_OP_TYPE_RET, "ret" },
+	{ R_ANAL_OP_TYPE_CRET, "cret" },
+	{ R_ANAL_OP_TYPE_ROL, "rol" },
+	{ R_ANAL_OP_TYPE_ROR, "ror" },
+	{ R_ANAL_OP_TYPE_SAL, "sal" },
+	{ R_ANAL_OP_TYPE_SAR, "sar" },
+	{ R_ANAL_OP_TYPE_SHL, "shl" },
+	{ R_ANAL_OP_TYPE_SHR, "shr" },
+	{ R_ANAL_OP_TYPE_STORE, "store" },
+	{ R_ANAL_OP_TYPE_SUB, "sub" },
+	{ R_ANAL_OP_TYPE_SWI, "swi" },
+	{ R_ANAL_OP_TYPE_CSWI, "cswi" },
 	{ R_ANAL_OP_TYPE_SWITCH, "switch" },
-	{ R_ANAL_OP_TYPE_TRAP  , "trap" },
-	{ R_ANAL_OP_TYPE_UCALL , "ucall" },
-	{ R_ANAL_OP_TYPE_RCALL , "rcall" }, // needs to be changed
-	{ R_ANAL_OP_TYPE_ICALL , "ucall" }, // needs to be changed
-	{ R_ANAL_OP_TYPE_IRCALL, "ucall" }, // needs to be changed
-	{ R_ANAL_OP_TYPE_UCCALL, "uccall" },
-	{ R_ANAL_OP_TYPE_UCJMP , "ucjmp" },
-	{ R_ANAL_OP_TYPE_UJMP  , "ujmp" },
-	{ R_ANAL_OP_TYPE_RJMP  , "rjmp" }, // needs to be changed
-	{ R_ANAL_OP_TYPE_IJMP  , "ujmp" }, // needs to be changed
-	{ R_ANAL_OP_TYPE_IRJMP , "ujmp" }, // needs to be changed
-	{ R_ANAL_OP_TYPE_UNK   , "unk" },
-	{ R_ANAL_OP_TYPE_UPUSH , "upush" },
-	{ R_ANAL_OP_TYPE_RPUSH , "rpush" },
-	{ R_ANAL_OP_TYPE_XCHG  , "xchg" },
-	{ R_ANAL_OP_TYPE_XOR   , "xor" },
-	{ R_ANAL_OP_TYPE_CASE  , "case" },
-	{ R_ANAL_OP_TYPE_CPL   , "cpl" },
+	{ R_ANAL_OP_TYPE_TRAP, "trap" },
+	{ R_ANAL_OP_TYPE_UCALL, "ucall" },
+	{ R_ANAL_OP_TYPE_RCALL, "rcall" },
+	{ R_ANAL_OP_TYPE_ICALL, "icall" },
+	{ R_ANAL_OP_TYPE_IRCALL, "ircall" },
+	{ R_ANAL_OP_TYPE_UCCALL, "ucccall" },
+	{ R_ANAL_OP_TYPE_UCJMP, "ucjmp" },
+	{ R_ANAL_OP_TYPE_UJMP, "ujmp" },
+	{ R_ANAL_OP_TYPE_RJMP, "rjmp" },
+	{ R_ANAL_OP_TYPE_IJMP, "ijmp" },
+	{ R_ANAL_OP_TYPE_IRJMP, "irjmp" },
+	{ R_ANAL_OP_TYPE_UNK, "unk" },
+	{ R_ANAL_OP_TYPE_UPUSH, "upush" },
+	{ R_ANAL_OP_TYPE_RPUSH, "rpush" },
+	{ R_ANAL_OP_TYPE_XCHG, "xchg" },
+	{ R_ANAL_OP_TYPE_XOR, "xor" },
+	{ R_ANAL_OP_TYPE_CASE, "case" },
+	{ R_ANAL_OP_TYPE_CPL, "cpl" },
 	{ R_ANAL_OP_TYPE_CRYPTO, "crypto" },
 	{0,NULL}
 };
@@ -666,7 +681,7 @@ R_API int r_anal_op_hint(RAnalOp *op, RAnalHint *hint) {
 R_API int r_anal_op_reg_delta(RAnal *anal, ut64 addr, const char *name) {
 	ut8 buf[32];
 	anal->iob.read_at (anal->iob.io, addr, buf, sizeof (buf));
-	RAnalOp op = { 0 };
+	RAnalOp op = {0};
 	if (r_anal_op (anal, &op, addr, buf, sizeof (buf), R_ANAL_OP_MASK_ALL) > 0) {
 		if (op.dst && op.dst->reg && op.dst->reg->name && (!name || !strcmp (op.dst->reg->name, name))) {
 			if (op.src[0]) {

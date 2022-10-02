@@ -123,17 +123,17 @@ R_LIB_VERSION_HEADER (r_bin);
 #define R_BIN_TYPE_SPECIAL_SYM_STR "SPCL"
 #define R_BIN_TYPE_UNKNOWN_STR "UNK"
 
-enum {
+typedef enum {
 	R_BIN_SYM_ENTRY,
 	R_BIN_SYM_INIT,
 	R_BIN_SYM_MAIN,
 	R_BIN_SYM_FINI,
 	R_BIN_SYM_LAST
-};
+} RBinSym;
 
 // name mangling types
 // TODO: Rename to R_BIN_LANG_
-enum {
+typedef enum {
 	R_BIN_NM_NONE = 0,
 	R_BIN_NM_JAVA = 1,
 	R_BIN_NM_C = 1<<1,
@@ -147,35 +147,40 @@ enum {
 	R_BIN_NM_KOTLIN = 1<<9,
 	R_BIN_NM_BLOCKS = 1<<31,
 	R_BIN_NM_ANY = -1,
-};
+} RBinNameMangling;
 
-enum {
+typedef enum {
 	R_STRING_TYPE_DETECT = '?',
 	R_STRING_TYPE_ASCII = 'a',
 	R_STRING_TYPE_UTF8 = 'u',
 	R_STRING_TYPE_WIDE = 'w', // utf16 / widechar string
 	R_STRING_TYPE_WIDE32 = 'W', // utf32
 	R_STRING_TYPE_BASE64 = 'b',
-};
+} RStringType;
 
-enum {
+typedef enum {
 	R_BIN_CLASS_PRIVATE,
 	R_BIN_CLASS_PUBLIC,
 	R_BIN_CLASS_FRIENDLY,
 	R_BIN_CLASS_PROTECTED,
-};
+} RBinClassVisibility;
 
-enum {
+typedef enum {
+	R_BIN_RELOC_1 = 1,
+	R_BIN_RELOC_2 = 2,
+	R_BIN_RELOC_4 = 4,
 	R_BIN_RELOC_8 = 8,
 	R_BIN_RELOC_16 = 16,
+	R_BIN_RELOC_24 = 24,
 	R_BIN_RELOC_32 = 32,
+	R_BIN_RELOC_48 = 48,
 	R_BIN_RELOC_64 = 64
-};
+} RBinRelocType;
 
-enum {
+typedef enum {
 	R_BIN_TYPE_DEFAULT = 0,
 	R_BIN_TYPE_CORE = 1
-};
+} RBinType;
 
 typedef struct r_bin_addr_t {
 	ut64 vaddr;
@@ -253,7 +258,7 @@ typedef struct r_bin_object_t {
 	RList/*<??>*/ *entries;
 	RList/*<??>*/ *fields;
 	RList/*<??>*/ *libs;
-	RBNode/*<RBinReloc>*/ *relocs;
+	RRBTree/*<RBinReloc>*/ *relocs;
 	RList/*<??>*/ *strings;
 	RList/*<RBinClass>*/ *classes;
 	HtPP *classes_ht;
@@ -277,15 +282,15 @@ typedef struct r_bin_object_t {
 typedef struct r_bin_file_t {
 	char *file;
 	int fd;
-	int size;
+	ut64 size;
 	int rawstr;
 	int strmode;
 	ut32 id;
 	RBuffer *buf;
-	ut64 offset;
+	ut64 offset; // XXX
 	RBinObject *o;
 	void *xtr_obj;
-	ut64 loadaddr;
+	ut64 loadaddr; // XXX
 	/* values used when searching the strings */
 	int minstrlen;
 	int maxstrlen;
@@ -294,6 +299,7 @@ typedef struct r_bin_file_t {
 	// struct r_bin_plugin_t *curplugin; // use o->plugin
 	RList *xtr_data;
 	Sdb *sdb;
+// #warning RBinFile.sdb_info will be removed in r2-5.7.0
 	Sdb *sdb_info;
 	Sdb *sdb_addrinfo;
 	struct r_bin_t *rbin;
@@ -570,7 +576,6 @@ typedef struct r_bin_reloc_t {
 	 * cf. https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html
 	 */
 	bool is_ifunc;
-	RBNode vrb;
 } RBinReloc;
 
 typedef struct r_bin_string_t {
@@ -659,7 +664,6 @@ R_API void r_bin_string_free(void *_str);
 #ifdef R_API
 
 R_API RBinImport *r_bin_import_clone(RBinImport *o);
-R_API const char *r_bin_symbol_name(RBinSymbol *s);
 typedef void (*RBinSymbolCallback)(RBinObject *obj, RBinSymbol *symbol);
 
 // options functions
@@ -701,10 +705,8 @@ R_API RList *r_bin_get_entries(RBin *bin);
 R_API RList *r_bin_get_fields(RBin *bin);
 R_API const RList *r_bin_get_imports(RBin *bin);
 R_API RList *r_bin_get_libs(RBin *bin);
-R_API RBNode *r_bin_patch_relocs(RBin *bin);
-R_API RList *r_bin_patch_relocs_list(RBin *bin);
-R_API RBNode *r_bin_get_relocs(RBin *bin);
-R_API RList *r_bin_get_relocs_list(RBin *bin);
+R_API RRBTree *r_bin_patch_relocs(RBin *bin);
+R_API RRBTree *r_bin_get_relocs(RBin *bin);
 R_API RList *r_bin_get_sections(RBin *bin);
 R_API RList *r_bin_get_classes(RBin *bin);
 R_API RList *r_bin_get_strings(RBin *bin);
@@ -877,6 +879,7 @@ extern RBinPlugin r_bin_plugin_pyc;
 extern RBinPlugin r_bin_plugin_off;
 extern RBinPlugin r_bin_plugin_tic;
 extern RBinPlugin r_bin_plugin_hunk;
+extern RBinPlugin r_bin_plugin_xalz;
 
 #ifdef __cplusplus
 }

@@ -39,7 +39,9 @@ static bool __fcn_exists(RAnal *anal, const char *name, ut64 addr) {
 	}
 	RAnalFunction *f = ht_pp_find (anal->ht_name_fun, name, &found);
 	if (f && found) {
-		eprintf ("Invalid function name '%s' at 0x%08"PFMT64x"\n", name, addr);
+		if (f->addr != addr) {
+			eprintf ("Invalid function name '%s' at 0x%08"PFMT64x" (function at 0x%08"PFMT64x")\n", name, addr, f->addr);
+		}
 		return true;
 	}
 	// check if there's a function already in the given address
@@ -75,7 +77,7 @@ R_API RAnalFunction *r_anal_function_new(RAnal *anal) {
 	fcn->anal = anal;
 	fcn->addr = UT64_MAX;
 	fcn->cc = r_str_constpool_get (&anal->constpool, r_anal_cc_default (anal));
-	fcn->bits = anal->bits;
+	fcn->bits = anal->config->bits;
 	fcn->bbs = r_list_new ();
 	fcn->diff = r_anal_diff_new ();
 	fcn->has_changed = true;
@@ -95,11 +97,13 @@ R_API void r_anal_function_free(RAnalFunction *fcn) {
 	}
 
 	RAnalBlock *block;
-	RListIter *iter;
-	r_list_foreach (fcn->bbs, iter, block) {
-		r_list_delete_data (block->fcns, fcn);
-		r_anal_block_unref (block);
+	RListIter *iter, *iter2;
+	r_list_foreach_safe (fcn->bbs, iter, iter2, block) {
+		r_anal_function_remove_block (fcn, block);
+		// r_list_delete_data (block->fcns, fcn);
+		//r_anal_block_unref (block);
 	}
+	// fcn->bbs->free = r_anal_block_unref;
 	r_list_free (fcn->bbs);
 
 	RAnal *anal = fcn->anal;
@@ -150,7 +154,7 @@ R_API RAnalFunction *r_anal_create_function(RAnal *anal, const char *name, ut64 
 	fcn->addr = addr;
 	fcn->type = type;
 	fcn->cc = r_str_constpool_get (&anal->constpool, r_anal_cc_default (anal));
-	fcn->bits = anal->bits;
+	fcn->bits = anal->config->bits;
 	if (name) {
 		free (fcn->name);
 		fcn->name = strdup (name);

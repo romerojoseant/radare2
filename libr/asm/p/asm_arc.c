@@ -21,7 +21,7 @@ static RStrBuf *buf_global = NULL;
 static int buf_len = 0;
 static ut8 bytes[32] = {0};
 
-static int arc_buffer_read_memory (bfd_vma memaddr, bfd_byte *myaddr, unsigned int length, struct disassemble_info *info) {
+static int arc_buffer_read_memory(bfd_vma memaddr, bfd_byte *myaddr, unsigned int length, struct disassemble_info *info) {
 	int delta = (memaddr - Offset);
 	if (delta < 0) {
 		return -1; // disable backward reads
@@ -33,7 +33,7 @@ static int arc_buffer_read_memory (bfd_vma memaddr, bfd_byte *myaddr, unsigned i
 	return 0;
 }
 
-static int symbol_at_address(bfd_vma addr, struct disassemble_info * info) {
+static int symbol_at_address(bfd_vma addr, struct disassemble_info *info) {
 	return 0;
 }
 
@@ -64,12 +64,12 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	disasm_obj.symbol_at_address_func = &symbol_at_address;
 	disasm_obj.memory_error_func = &memory_error_func;
 	disasm_obj.print_address_func = &generic_print_address_func;
-	disasm_obj.endian = !a->big_endian;
+	disasm_obj.endian = !a->config->big_endian;
 	disasm_obj.fprintf_func = &generic_fprintf_func;
 	disasm_obj.stream = stdout;
 	disasm_obj.mach = 0;
 	r_strbuf_set (&op->buf_asm, "");
-	if (a->bits == 16) {
+	if (a->config->bits == 16) {
 		op->size = ARCompact_decodeInstr ((bfd_vma)Offset, &disasm_obj);
 	} else {
 		op->size = ARCTangent_decodeInstr ((bfd_vma)Offset, &disasm_obj);
@@ -85,7 +85,7 @@ RAsmPlugin r_asm_plugin_arc = {
 	.arch = "arc",
 	.bits = 16 | 32,
 	.endian = R_SYS_ENDIAN_LITTLE | R_SYS_ENDIAN_BIG,
-	.desc = "Argonaut RISC Core",
+	.desc = "Argonaut RISC Core, ARC (-b 32) and ARCCompact (-b 16)",
 	.disassemble = &disassemble,
 	.license = "GPL3"
 };

@@ -5,7 +5,7 @@
 
 #include <r_types.h>
 
-static inline ut16 arg_offset (ut16 pc, ut8 offset) {
+static inline ut16 arg_offset(ut16 pc, ut8 offset) {
 	if (offset < 0x80) {
 		return pc + offset;
 	}
@@ -13,12 +13,12 @@ static inline ut16 arg_offset (ut16 pc, ut8 offset) {
 	return pc - offset;
 }
 
-static inline ut16 arg_addr11 (ut16 pc, const ut8 *buf) {
+static inline ut16 arg_addr11(ut16 pc, const ut8 *buf) {
 	// ADDR11 is replacing lower 11 bits of (pre-incremented) PC
 	return (pc & 0xf800) + ((buf[0] & 0xe0) << 3) + buf[1];
 }
 
-static inline ut8 arg_bit (ut8 bit_addr) {
+static inline ut8 arg_bit(ut8 bit_addr) {
 	if (bit_addr < 0x80) {
 		// bit addresses 0x00-0x7f are mapped to bytes at 0x20-0x2f
 		return (bit_addr >> 3) + 0x20;
@@ -178,6 +178,7 @@ static _8051_op_t _8051_ops[] = {
 	{0xa2, 1, OP_MOV, T (MOV), "mov c, 0x%02x.%d", 2, M_NONE, A_BIT, 0, 0},
 	{0xa3, 2, OP_INC, T (ADD), "inc dptr", 1, M_NONE, 0, 0, 0},
 	{0xa4, 4, OP_MUL, T (MUL), "mul ab", 1, M_NONE, 0, 0, 0},
+	{0xa5, 1, OP_INVALID, T (UNK), "reserved", 1, M_NONE, 0, 0, 0},
 	{0xa6, 2, OP_MOV, T (MOV), "mov @r%d, 0x%02x", 2, M_RI, A_RI, A_DIRECT, 0},
 	{0xa8, 2, OP_MOV, T (MOV), "mov r%d, 0x%02x", 2, M_RN, A_RN, A_DIRECT, 0},
 	{0xb0, 2, OP_ANL, T (AND), "anl c, /0x%02x.%d", 2, M_NONE, A_BIT, 0, 0},

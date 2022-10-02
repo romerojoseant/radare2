@@ -524,8 +524,7 @@ static void print_node(const RAnal *anal, const RFlirtNode *node, int indent) {
 	}
 }
 
-static int module_match_buffer(RAnal *anal, const RFlirtModule *module,
-                               ut8 *b, ut64 address, ut32 buf_size) {
+static int module_match_buffer(RAnal *anal, const RFlirtModule *module, ut8 *b, ut64 address, ut32 buf_size) {
 	/* Returns true if module matches b, according to the signatures infos.
 	* Return false otherwise.
 	* The buffer starts from the first byte after the pattern */
@@ -602,7 +601,7 @@ static int module_match_buffer(RAnal *anal, const RFlirtModule *module,
 			if (!flirt_func->name[name_offs]) {
 				continue;
 			}
-			name = r_name_filter2 (flirt_func->name + name_offs);
+			name = r_name_filter_dup (flirt_func->name + name_offs);
 			free (next_module_function->name);
 			next_module_function->name = r_str_newf ("flirt.%s", name);
 			anal->flb.set (anal->flb.f, next_module_function->name,
@@ -675,7 +674,7 @@ static int node_match_functions(RAnal *anal, const RFlirtNode *root_node) {
 			continue;
 		}
 		if (!anal->iob.read_at (anal->iob.io, func->addr, func_buf, (int)func_size)) {
-			eprintf ("Couldn't read function %s at 0x%"PFMT64x"\n", func->name, func->addr);
+			R_LOG_WARN ("Couldn't read function %s at 0x%"PFMT64x, func->name, func->addr);
 			free (func_buf);
 			continue;
 		}
@@ -733,9 +732,7 @@ static ut8 read_module_tail_bytes(RFlirtModule *module, RBuffer *b) {
 			goto err_exit;
 		}
 		r_list_append (module->tail_bytes, tail_byte);
-#if DEBUG
-		eprintf ("READ TAIL BYTE: %04X: %02X\n", tail_byte->offset, tail_byte->value);
-#endif
+		R_LOG_DEBUG ("READ TAIL BYTE: %04X: %02X", tail_byte->offset, tail_byte->value);
 	}
 
 	return true;

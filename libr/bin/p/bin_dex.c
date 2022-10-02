@@ -70,7 +70,8 @@ static ut64 get_method_flags(ut64 MA) {
 static ut64 offset_of_method_idx(RBinFile *bf, int idx) {
 	// RBinDexObj *dex = bf->o->bin_obj;
 	// ut64 off = dex->header.method_offset + idx;
-	return sdb_num_get (mdb, sdb_fmt ("method.%d", idx), 0);
+	r_strf_var (key, 64, "method.%d", idx);
+	return sdb_num_get (mdb, key, 0);
 }
 
 static ut64 dex_field_offset(RBinDexObj *bin, int fid) {
@@ -266,8 +267,12 @@ static char *dex_get_proto(RBinDexObj *bin, int proto_id) {
 	}
 	size_t typeidx_bufsize = (list_size * sizeof (ut16));
 	if (params_off + typeidx_bufsize > bin->size) {
+		eprintf ("Warning: truncated typeidx buffer from %d to %d\n",
+			(int)(params_off + typeidx_bufsize), (int)(bin->size - params_off));
 		typeidx_bufsize = bin->size - params_off;
-		eprintf ("Warning: truncated typeidx buffer\n");
+		// early return as this may result on so many trashy symbols that take too much time to load
+		// this is only happening when there's a corrupted dex.
+		return NULL;
 	}
 	RStrBuf *sig = r_strbuf_new ("(");
 	if (typeidx_bufsize > 0) {
@@ -657,7 +662,7 @@ static void dex_parse_debug_item(RBinFile *bf, RBinDexClass *c, int MI, int MA, 
 
 	rbin->cb_printf ("      positions     :\n");
 	r_list_foreach (debug_positions, iter2, position) {
-		rbin->cb_printf ("        0x%04"PFMT64x" line=%llu\n",
+		rbin->cb_printf ("        0x%04"PFMT64x" line=%"PFMT64u"\n",
 				 position->address, position->line);
 	}
 
@@ -719,7 +724,7 @@ static Sdb *get_sdb(RBinFile *bf) {
 static bool load_buffer(RBinFile *bf, void **bin_obj, RBuffer *buf, ut64 loadaddr, Sdb *sdb) {
 	RBinDexObj *o = r_bin_dex_new_buf (buf, bf->rbin->verbose);
 	*bin_obj = o;
-	return o != NULL;
+	return o;
 }
 
 static ut64 baddr(RBinFile *bf) {
@@ -1098,8 +1103,7 @@ static void parse_dex_class_fields(RBinFile *bf, RBinDexClass *c, RBinClass *cls
 		if (dexdump) {
 			char *accessStr = createAccessFlagStr (
 				accessFlags, kAccessForField);
-			bin->cb_printf ("    #%zu              : (in %s;)\n", i,
-					 cls->name);
+			bin->cb_printf ("    #%u              : (in %s;)\n", (unsigned int)i, cls->name);
 			bin->cb_printf ("      name          : '%s'\n", fieldName);
 			bin->cb_printf ("      type          : '%s'\n", type_str);
 			bin->cb_printf ("      access        : 0x%04x (%s)\n",
@@ -1126,7 +1130,6 @@ static void parse_dex_class_method(RBinFile *bf, RBinDexClass *c, RBinClass *cls
 	PrintfCallback cb_printf = bf->rbin->cb_printf;
 	RBinDexObj *dex = bf->o->bin_obj;
 	bool bin_dbginfo = bf->rbin->want_dbginfo;
-	int i;
 	ut64 omi = 0;
 	bool catchAll;
 	ut16 regsz = 0, ins_size = 0, outs_size = 0, tries_size = 0;
@@ -1141,6 +1144,7 @@ static void parse_dex_class_method(RBinFile *bf, RBinDexClass *c, RBinClass *cls
 	ut64 encoded_method_addr;
 	bool err = false;
 	ut64 MI, MA, MC;
+	ut64 i;
 	for (i = 0; i < DM; i++) {
 		err = false;
 		skip = 0;
@@ -1170,10 +1174,11 @@ static void parse_dex_class_method(RBinFile *bf, RBinDexClass *c, RBinClass *cls
 			}
 		}
 		const char *method_name = dex_method_name (dex, MI);
-		char *signature = dex_method_signature (dex, MI);
 		if (!method_name) {
-			method_name = strdup ("unknown");
+			// method_name = strdup ("unknown");
+			continue;
 		}
+		char *signature = dex_method_signature (dex, MI);
 		char *flag_name = r_str_newf ("%s.method.%s%s", cls->name, method_name, signature);
 		if (!flag_name || !*flag_name) {
 			R_FREE (flag_name);
@@ -1226,7 +1231,7 @@ static void parse_dex_class_method(RBinFile *bf, RBinDexClass *c, RBinClass *cls
 		}
 		if (dexdump) {
 			char* accessStr = createAccessFlagStr (MA, kAccessForMethod);
-			cb_printf ("    #%d              : (in %s;)\n", i, cls->name);
+			cb_printf ("    #%" PFMT64d "              : (in %s;)\n", i, cls->name);
 			cb_printf ("      name          : '%s'\n", method_name);
 			cb_printf ("      type          : '%s'\n", signature);
 			cb_printf ("      access        : 0x%04x (%s)\n", (ut32)MA, accessStr);
@@ -1407,7 +1412,8 @@ static void parse_dex_class_method(RBinFile *bf, RBinDexClass *c, RBinClass *cls
 				if (!mdb) {
 					mdb = sdb_new0 ();
 				}
-				sdb_num_set (mdb, sdb_fmt ("method.%"PFMT64d, MI), sym->paddr, 0);
+				r_strf_var (methvar, 64, "method.%"PFMT64d, MI);
+				sdb_num_set (mdb, methvar, sym->paddr, 0);
 				// -----------------
 				// WORK IN PROGRESS
 				// -----------------
@@ -1417,7 +1423,7 @@ static void parse_dex_class_method(RBinFile *bf, RBinDexClass *c, RBinClass *cls
 						if (!cdb) {
 							cdb = sdb_new0 ();
 						}
-						sdb_num_set (cdb, sdb_fmt ("%d", c->class_id), sym->paddr, 0);
+						sdb_num_set (cdb, r_strf ("%d", c->class_id), sym->paddr, 0);
 					}
 				}
 #endif
@@ -1650,7 +1656,7 @@ static bool dex_loadcode(RBinFile *bf) {
 		for (i = 0; i < dex->header.class_size; i++) {
 			struct dex_class_t *c = &dex->classes[i];
 			if (dexdump) {
-				cb_printf ("Class #%zu            -\n", i);
+				cb_printf ("Class #%u            -\n", (unsigned int)i);
 			}
 			parse_class (bf, c, i, methods, &sym_count);
 		}
@@ -1724,7 +1730,7 @@ static bool dex_loadcode(RBinFile *bf) {
 				sym->paddr = sym->vaddr = dex->header.method_offset + (sizeof (struct dex_method_t) * i) ;
 				sym->ordinal = sym_count++;
 				r_list_append (dex->methods_list, sym);
-				const char *mname = sdb_fmt ("method.%"PFMT64d, (ut64)i);
+				r_strf_var (mname, 64, "method.%"PFMT64d, (ut64)i);
 				sdb_num_set (mdb, mname, sym->paddr, 0);
 			}
 			free ((void *)signature);
@@ -2081,8 +2087,9 @@ static RList *dex_fields(RBinFile *bf) {
 	ret->free = free;
 	ut64 addr = 0;
 
+	r_strf_buffer (32);
 #define ROW(nam,siz,val,fmt) \
-	r_list_append (ret, r_bin_field_new (addr, addr, siz, nam, sdb_fmt ("0x%08"PFMT64x, (ut64)val), fmt, false)); \
+	r_list_append (ret, r_bin_field_new (addr, addr, siz, nam, r_strf ("0x%08"PFMT64x, (ut64)val), fmt, false)); \
 	addr += siz;
 
 	r_buf_seek (bf->buf, 0, R_BUF_SET);

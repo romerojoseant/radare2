@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2019-2021 - pancake */
+/* radare - LGPL - Copyright 2019-2022 - pancake */
 
 #include <r_util/r_table.h>
 #include "r_cons.h"
@@ -20,7 +20,7 @@ static RTableColumnType r_table_type_string = { "string", sortString };
 static RTableColumnType r_table_type_number = { "number", sortNumber };
 static RTableColumnType r_table_type_bool = { "bool", sortNumber };
 
-R_API RTableColumnType *r_table_type (const char *name) {
+R_API RTableColumnType *r_table_type(const char *name) {
 	if (!strcmp (name, "bool")) {
 		return &r_table_type_bool;
 	}
@@ -644,7 +644,7 @@ R_API void r_table_filter(RTable *t, int nth, int op, const char *un) {
 	RListIter *iter, *iter2;
 	ut64 uv = r_num_math (NULL, un);
 	ut64 sum = 0;
-	size_t page = 0, page_items = 0;
+	int page = 0, page_items = 0;
 	size_t lrow = 0;
 	if (op == 't') {
 		size_t ll = r_list_length (t->rows);
@@ -653,13 +653,13 @@ R_API void r_table_filter(RTable *t, int nth, int op, const char *un) {
 		}
 	}
 	if (op == 'p') {
-		sscanf (un, "%zd/%zd", &page, &page_items);
+		sscanf (un, "%d/%d", &page, &page_items);
 		if (page < 1) {
 			page = 1;
 		}
 		if (!ST32_MUL_OVFCHK (page, page_items)) {
 			lrow = page_items * (page - 1);
-			uv = page_items * (page);
+			uv = ((ut64)page_items) * page;
 		}
 	}
 	size_t nrow = 0;
@@ -718,8 +718,11 @@ R_API void r_table_filter(RTable *t, int nth, int op, const char *un) {
 				match = (nv != uv);
 			}
 			break;
+		case '$':
+			match = strstr (nn, un) == NULL;
+			break;
 		case '~':
-			match = strstr (nn, un) != NULL;
+			match = strstr (nn, un);
 			break;
 		case 's':
 			match = strlen (nn) == atoi (un);
@@ -1025,6 +1028,7 @@ R_API const char *r_table_help(void) {
 		" */tail/10      same as | tail -n 10\n"
 		" */page/1/10    show the first 10 rows (/page/2/10 will show the 2nd)\n"
 		" c/str/warn     grep rows matching col(name).str(warn)\n"
+		" c/nostr/warn   grep rows not matching col(name).str(warn)\n"
 		" c/strlen/3     grep rows matching strlen(col) == X\n"
 		" c/minlen/3     grep rows matching strlen(col) > X\n"
 		" c/maxlen/3     grep rows matching strlen(col) < X\n"
@@ -1147,6 +1151,10 @@ R_API bool r_table_query(RTable *t, const char *q) {
 			if (operand) {
 				r_table_filter (t, col, 'h', operand);
 			}
+		} else if (!strcmp (operation, "nostr")) {
+			if (operand) {
+				r_table_filter (t, col, '$', operand);
+			}
 		} else if (!strcmp (operation, "str")) {
 			if (operand) {
 				r_table_filter (t, col, '~', operand);
@@ -1154,7 +1162,7 @@ R_API bool r_table_query(RTable *t, const char *q) {
 		} else if (!strcmp (operation, "cols")) {
 			char *op = strdup (r_str_get (operand));
 			RList *list = r_str_split_list (op, "/", 0);
-			r_list_prepend (list, strdup (columnName));
+			r_list_prepend (list, (char *)columnName);
 			r_table_columns (t, list); // select/reorder columns
 			r_list_free (list);
 			free (op);
@@ -1184,7 +1192,7 @@ R_API bool r_table_align(RTable *t, int nth, int align) {
 	return false;
 }
 
-R_API void r_table_hide_header (RTable *t) {
+R_API void r_table_hide_header(RTable *t) {
 	t->showHeader = false;
 }
 
@@ -1223,22 +1231,19 @@ R_API void r_table_visual_list(RTable *table, RList *list, ut64 seek, ut64 len, 
 					? block: h_line;
 				r_strbuf_append (buf, arg);
 			}
+			r_strf_var (a0, 64, "%d%c", i, (va
+				? r_itv_contain (info->vitv, seek)
+				: r_itv_contain (info->pitv, seek))? '*' : ' ');
+			r_strf_var (a1, 64, "0x%08"PFMT64x, va
+				? info->vitv.addr: info->pitv.addr);
+			r_strf_var (a2, 64, "0x%08"PFMT64x, va
+				? r_itv_end (info->vitv): r_itv_end (info->pitv));
 			char *b = r_strbuf_drain (buf);
-			if (va) {
-				r_table_add_rowf (table, "sssssss",
-					sdb_fmt ("%d%c", i, r_itv_contain (info->vitv, seek) ? '*' : ' '),
-					sdb_fmt ("0x%"PFMT64x, info->vitv.addr),
-					b,
-					sdb_fmt ("0x%"PFMT64x, r_itv_end (info->vitv)),
-					(info->perm != -1)? r_str_rwx_i (info->perm) : "",
-					(info->extra)?info->extra : "",
-					(info->name)?info->name :"");
-			} else {
-				r_table_add_rowf (table, "sssssss", sdb_fmt ("%d%c", i, r_itv_contain (info->pitv, seek) ? '*' : ' '),
-					sdb_fmt ("0x%"PFMT64x, info->pitv.addr), b,
-					sdb_fmt ("0x%"PFMT64x, r_itv_end (info->pitv)),
-					(info->perm != -1)? r_str_rwx_i (info->perm) : "",(info->extra)?info->extra : "", (info->name)?info->name :"");
-			}
+			r_table_add_rowf (table, "sssssss",
+				a0, a1, b, a2,
+				(info->perm != -1)? r_str_rwx_i (info->perm) : "",
+				(info->extra)?info->extra : "",
+				(info->name)?info->name :"");
 			free (b);
 			i++;
 		}
@@ -1252,8 +1257,9 @@ R_API void r_table_visual_list(RTable *table, RList *list, ut64 seek, ut64 len, 
 				r_strbuf_append (buf,((j * mul) + min >= seek &&
 						     (j * mul) + min <= seek + len) ? "^" : h_line);
 			}
-			r_table_add_rowf (table, "sssssss", "=>", sdb_fmt ("0x%08"PFMT64x, seek),
-					r_strbuf_drain (buf), sdb_fmt ("0x%08"PFMT64x, seek + len), "", "", "");
+			r_strf_var (a0, 64, "0x%08"PFMT64x, seek);
+			r_strf_var (a1, 64, "0x%08"PFMT64x, seek + len);
+			r_table_add_rowf (table, "sssssss", "=>", a0, r_strbuf_drain (buf), a1, "", "", "");
 		} else {
 			r_strbuf_free (buf);
 		}

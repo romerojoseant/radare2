@@ -3,7 +3,7 @@
 // return 1 on error
 static int r_core_rtr_http_run(RCore *core, int launch, int browse, const char *path) {
 	RConfig *newcfg = NULL, *origcfg = NULL;
-	char headers[128] = R_EMPTY;
+	char headers[128] = {0};
 	RSocketHTTPRequest *rs;
 	char buf[32];
 	int ret = 0;
@@ -113,10 +113,9 @@ static int r_core_rtr_http_run(RCore *core, int launch, int browse, const char *
 	origcfg = core->config;
 	newcfg = r_config_clone (core->config);
 	core->config = newcfg;
-
-	r_config_set (core->config, "asm.cmt.right", "false");
 #if 0
 	// WHY
+	r_config_set (core->config, "asm.cmt.right", "false");
 	r_config_set (core->config, "scr.html", "true");
 #endif
 	r_config_set_i (core->config, "scr.color", COLOR_MODE_DISABLED);
@@ -524,7 +523,7 @@ the_end:
 }
 
 #if 0
-static RThreadFunctionRet r_core_rtr_http_thread (RThread *th) {
+static RThreadFunctionRet r_core_rtr_http_thread(RThread *th) {
 	if (!th) {
 		return false;
 	}

@@ -123,7 +123,7 @@ static bool parse_hexadecimal(char const* hexstr, ut16* out) {
  * any text after a single-quote and before the next single-quote is considered
  * quoted. There is no escaping.
  */
-static bool get_arg(char const*multi, int n, char * dest)
+static bool get_arg(char const*multi, int n, char *dest)
 {
 	char* lastnonws = dest;
 	bool anynonws = false;
@@ -183,7 +183,7 @@ static bool get_arg(char const*multi, int n, char * dest)
  * arg parameter must be 3 char pointers wide.
  * TODO: merge with get_arg, as this is now the only user
  */
-static int get_arguments (char**arg, char const*arguments) {
+static int get_arguments(char**arg, char const*arguments) {
 	size_t arglen = strlen (arguments) + 1;
 	char*tmp = malloc (arglen);
 	if (!get_arg (arguments, 1, tmp)) {
@@ -340,13 +340,17 @@ static bool is_indirect_reg(char const*str)
 	return false;
 }
 
+static bool is_direct(char const *str) {
+	ut16 useless;
+	return parse_hexadecimal (str, &useless);
+}
+
 /**
  * returns true if the given string denotes an 'r'-register
  */
-static bool is_reg(char const*str)
-{
-	return str && tolower ((unsigned char)str[0]) == 'r' && r_str_ansi_nlen (str, 3) == 2
-		&& '0' <= str[1] && str[1] <= '7';
+static bool is_reg(char const *str) {
+	r_return_val_if_fail (str, false);
+	return tolower (str[0]) == 'r' && R_BETWEEN ('0', str[1], '7') && !str[2];
 }
 
 /**
@@ -377,19 +381,91 @@ static bool to_address(char const* addr_str, ut16* addr_out) {
 	return parse_hexadecimal (addr_str, addr_out);
 }
 
-/**
- * attempts to parse the given string as an 8bit-wide address
- */
-static bool address_direct(char const* addr_str, ut8* addr_out) {
-	ut16 addr_big;
-	// rasm2 resolves symbols, so does this really only need to parse hex?
-	// maybe TODO: check address bounds?
-	if ( !parse_hexadecimal (addr_str, &addr_big)
-		|| (0xFF < addr_big)) {
+static bool parse_register(char const* register_input, ut8* hex_out) {
+	if (!strcmp (register_input, "r0")) {
+		*hex_out = 0x00;
+	} else if (!strcmp (register_input, "r1")) {
+		*hex_out = 0x01;
+	} else if (!strcmp (register_input, "r2")) {
+		*hex_out = 0x02;
+	} else if (!strcmp (register_input, "r3")) {
+		*hex_out = 0x03;
+	} else if (!strcmp (register_input, "r4")) {
+		*hex_out = 0x04;
+	} else if (!strcmp (register_input, "r5")) {
+		*hex_out = 0x05;
+	} else if (!strcmp (register_input, "r6")) {
+		*hex_out = 0x06;
+	} else if (!strcmp (register_input, "r7")) {
+		*hex_out = 0x07;
+	} else if (!strcmp (register_input, "p0")) {
+		*hex_out = 0x80;
+	} else if (!strcmp (register_input, "sp")) {
+		*hex_out = 0x81;
+	} else if (!strcmp (register_input, "dpl")) {
+		*hex_out = 0x82;
+	} else if (!strcmp (register_input, "dph")) {
+		*hex_out = 0x83;
+	} else if (!strcmp (register_input, "pcon")) {
+		*hex_out = 0x87;
+	} else if (!strcmp (register_input, "tcon")) {
+		*hex_out = 0x88;
+	} else if (!strcmp (register_input, "tmod")) {
+		*hex_out = 0x89;
+	} else if (!strcmp (register_input, "tl0")) {
+		*hex_out = 0x8a;
+	} else if (!strcmp (register_input, "tl1")) {
+		*hex_out = 0x8b;
+	} else if (!strcmp (register_input, "th0")) {
+		*hex_out = 0x8c;
+	} else if (!strcmp (register_input, "th1")) {
+		*hex_out = 0x8d;
+	} else if (!strcmp (register_input, "p1")) {
+		*hex_out = 0x90;
+	} else if (!strcmp (register_input, "scon")) {
+		*hex_out = 0x98;
+	} else if (!strcmp (register_input, "sbuf")) {
+		*hex_out = 0x99;
+	} else if (!strcmp (register_input, "p2")) {
+		*hex_out = 0xa0;
+	} else if (!strcmp (register_input, "ie")) {
+		*hex_out = 0xa8;
+	} else if (!strcmp (register_input, "p3")) {
+		*hex_out = 0xb0;
+	} else if (!strcmp (register_input, "ip")) {
+		*hex_out = 0xb8;
+	} else if (!strcmp (register_input, "psw")) {
+		*hex_out = 0xd0;
+	} else if (!strcmp (register_input, "a") || !strcmp (register_input, "acc")) {
+		*hex_out = 0xe8;
+	} else if (!strcmp (register_input, "b")) {
+		*hex_out = 0xf0;
+	} else {
 		return false;
 	}
-	*addr_out = addr_big;
 	return true;
+}
+
+  /*
+  * attempts to parse the given string as an 8bit-wide address
+  */
+static bool parse_address_direct(char const* addr_str, ut8* addr_out) {
+	ut16 addr_big;
+	ut8 addr_short;
+	// rasm2 resolves symbols, so does this really only need to parse hex?
+	// maybe TODO: check address bounds?
+	bool found = parse_hexadecimal (addr_str, &addr_big);// && (addr_big < 0xFF);
+
+	if (!found) {
+		if (!parse_register (addr_str, &addr_short)) {
+			return false;
+		}
+		*addr_out = addr_short;
+		return true;
+	}
+
+	*addr_out = addr_big;
+	return found;
 }
 
 /**
@@ -401,34 +477,49 @@ static bool address_bit(char const* addr_str, ut8* addr_out) {
 	char const *separator = r_str_lchr (addr_str, '.');
 	ut8 byte;
 	int bit;
-	bool ret = false;
+	bool ret = true;
 	// TODO: check if symbols are resolved properly in all cases:
 	// - symbol.2
 	// - 0x25.symbol
 	// - symbol.symbol
 	// - symbol
 	if (!separator) {
+		ret = false;
 		goto end;
 	}
 	r_str_ncpy (bytepart, addr_str, separator - addr_str + 1);
 	bytepart[separator - addr_str + 1] = '\0';
 	r_str_ncpy (bitpart, separator + 1, strlen (separator));
-	if (!address_direct (bytepart, &byte)) {
-		goto end;
-	}
-	if (1 < strlen (bitpart)
-		|| bitpart[0] < '0' || '7' < bitpart[0]) {
+
+	bit = bitpart[0] - '0';
+
+	if (bit > 9) {
 		ret = false;
 		goto end;
 	}
-	bit = bitpart[0] - '0';
-	if (0x20 <= byte && byte < 0x30) {
-		*addr_out = (byte - 0x20) * 8 + bit;
-		ret = true;
-	} else if (0x80 <= byte && !(byte%8)) {
-		*addr_out = byte + bit;
-		ret = true;
+
+	ut8 addr_bytepart = 0x00;
+	if (!parse_register(bytepart, &addr_bytepart)) {
+		if (!parse_address_direct (bytepart, &byte)) {
+			ret = false;
+			goto end;
+		}
+		if (1 < strlen (bitpart)
+			|| bitpart[0] < '0' || '7' < bitpart[0]) {
+			ret = false;
+			goto end;
+		}
+
+		if (0x20 <= byte && byte < 0x30) {
+			*addr_out = (byte - 0x20) * 8 + bit;
+		} else if (0x80 <= byte && !(byte%8)) {
+			*addr_out = byte + bit;
+		}
+		goto end;
 	}
+
+	*addr_out = addr_bytepart + bit;
+
 end:
 	free (bitpart); bitpart = 0;
 	free (bytepart); bytepart = 0;
@@ -447,6 +538,20 @@ static int register_number(char const*reg) {
 		return reg[2] - '0';
 	}
 	return 8; // not register 0-7, so...
+}
+
+/**
+ * translate a register name to an offset for an instruction
+ * failure case is 10
+ */
+static ut8 register_offset(const char *reg) {
+	if (!r_str_casecmp (reg, "@r0") || !r_str_casecmp (reg, "[r0]")) {
+		return 0;
+	}
+	if (!r_str_casecmp (reg, "@r1") || !r_str_casecmp (reg, "[r1]")) {
+		return 1;
+	}
+	return register_number (reg) + 2;
 }
 
 /******************************************************************************
@@ -483,17 +588,17 @@ static bool singlearg_reladdr(ut8 const firstbyte, char const* arg
 	return true;
 }
 
-static bool singlearg_direct(ut8 const firstbyte, char const* arg
-	, ut8 **out)
-{
-	ut8 address;
-	if (!address_direct (arg, &address)) {
+static bool singlearg_direct(ut8 const firstbyte, char const* arg, ut8 **out) {
+	bool ret = true;
+	ut8 address = 0x00;
+	if (!parse_address_direct (arg, &address)) {
 		return false;
 	}
+
 	(*out)[0] = firstbyte;
 	(*out)[1] = address;
 	*out += 2;
-	return true;
+	return ret;
 }
 
 static bool singlearg_immediate(ut8 firstbyte, char const* imm_str, ut8**out) {
@@ -602,7 +707,7 @@ static bool mnem_anl(char const*const*arg, ut16 pc, ut8**out) {
 	}
 
 	ut8 address;
-	if (!address_direct (arg[0], &address)) {
+	if (!parse_address_direct (arg[0], &address)) {
 		return false;
 	}
 	if (!r_str_casecmp (arg[1], "a")) {
@@ -638,7 +743,7 @@ static bool mnem_cjne(char const*const*arg, ut16 pc, ut8**out) {
 			return true;
 		}
 		ut8 address;
-		if (!address_direct (arg[1], &address)) {
+		if (!parse_address_direct (arg[1], &address)) {
 			return false;
 		}
 		(*out)[0] = 0xb5;
@@ -652,7 +757,7 @@ static bool mnem_cjne(char const*const*arg, ut16 pc, ut8**out) {
 		if (!resolve_immediate (arg[1] + 1, &imm)) {
 			return false;
 		}
-		(*out)[0] = 0xbf | register_number (arg[0]) ;
+		(*out)[0] = 0xb8 | register_number (arg[0]) ;
 		(*out)[1] = imm & 0x00FF;
 		// out[2] set earlier
 		*out += 3;
@@ -732,7 +837,7 @@ static bool mnem_djnz(char const*const*arg, ut16 pc, ut8**out) {
 		return true;
 	}
 	ut8 dec_address;
-	if (!address_direct (arg[0], &dec_address))  {
+	if (!parse_address_direct (arg[0], &dec_address))  {
 		return false;
 	}
 	(*out)[0] = 0xd5;
@@ -778,13 +883,21 @@ static bool mnem_jb(char const*const*arg, ut16 pc, ut8**out) {
 static bool mnem_jbc(char const*const*arg, ut16 pc, ut8**out) {
 	ut8 cmp_addr;
 	if (!address_bit (arg[0], &cmp_addr)) {
+		eprintf ("error during the assembly: address bit not found\n");
 		return false;
 	}
+
 	ut16 jmp_addr;
-	if (!to_address (arg[1], &jmp_addr)
-		|| !relative_address (pc + 1, jmp_addr, (*out) + 2)) {
+	if (!to_address (arg[1], &jmp_addr)) {
+		R_LOG_DEBUG ("error during the assembly: address %x not found", jmp_addr);
 		return false;
 	}
+
+	if (!relative_address (pc + 1, jmp_addr, (*out) + 2)) {
+		R_LOG_DEBUG ("error during the assembly: address %x not found", jmp_addr);
+		return false;
+	}
+
 	(*out)[0] = 0x10;
 	(*out)[1] = cmp_addr;
 	// out[2] set earlier
@@ -854,97 +967,87 @@ static bool mnem_mov_c(char const*const*arg, ut16 pc, ut8**out) {
 }
 
 static bool mnem_mov(char const*const*arg, ut16 pc, ut8**out) {
-	if (!r_str_casecmp (arg[0], "dptr")) {
-		ut16 imm;
-		if (!resolve_immediate (arg[1] + 1, &imm)) {
-			return false;
-		}
-		(*out)[0] = 0x90;
-		(*out)[1] = imm >> 8;
-		(*out)[2] = imm;
-		*out += 3;
-		return true;
-	}
-	if (is_indirect_reg (arg[0])) {
-		if (!r_str_casecmp (arg[1], "a")) {
-			return singlearg_register (0xf6, arg[0], out);
-		}
-		if (arg[1][0] != '#' ) {
-			return singlearg_direct (
-				0xa6 | register_number (arg[0])
-				, arg[1]
-				, out);
-		}
-		return singlearg_immediate (0x76 | register_number (arg[0])
-			, arg[1]
-			, out);
-	}
+	ut16 src_imm, dst_imm;
+	ut8 src_addr, dst_addr;
+	ut8 offset;
+
 	if (!r_str_casecmp (arg[0], "a")) {
-		if (is_indirect_reg (arg[1])) {
-			return singlearg_register (0xe6, arg[1], out);
-		}
-		if (is_reg (arg[1])) {
-			return singlearg_register (0xe8, arg[1], out);
-		}
-		if (arg[1][0] == '#') {
+		if (resolve_immediate (arg[1] + 1, &src_imm)) {
 			return singlearg_immediate (0x74, arg[1], out);
 		}
-		return singlearg_direct (0xe5, arg[1], out);
+
+		if (is_direct (arg[1])) {
+			return singlearg_direct (0xe5, arg[1], out);
+		}
+
+		offset = register_offset (arg[1]);
+		if (offset < 10) {
+			return single_byte_instr (0xe6 + offset, out);
+		}
 	}
-	if (is_reg (arg[0])) {
+
+	offset = register_offset (arg[0]);
+	if (offset < 10) {
+		if (resolve_immediate (arg[1] + 1, &src_imm)) {
+			return singlearg_immediate (0x76 + offset, arg[1], out);
+		} else if (is_direct (arg[1])) {
+			return singlearg_direct (0xa6 + offset, arg[1], out);
+		} else if (!r_str_casecmp (arg[1], "a")) {
+			return single_byte_instr (0xf6 + offset, out);
+		}
+	}
+
+	if (parse_hexadecimal (arg[0], &dst_imm)) {
+		if (resolve_immediate (arg[1] + 1, &src_imm)) {//TODO: write doublearg_direct_register for 3 bytes instructions
+			//use : "arg[1][0] == '#'" ?
+			(*out)[0] = 0x75;
+			(*out)[1] = dst_imm;
+			(*out)[2] = src_imm & 0x00ff;
+			*out += 3;
+			return true;
+		}
+
+		if (parse_hexadecimal (arg[1], &src_imm)) {
+			(*out)[0] = 0x85;
+			(*out)[1] = src_imm;
+			(*out)[2] = dst_imm;
+			*out += 3;
+			return true;
+		}
+
+		offset = register_offset (arg[1]);
+		if (offset < 10) {
+			return singlearg_direct (0x86 + offset, arg[0], out);
+		}
+	}
+
+	if (!r_str_casecmp (arg[0], "dptr")) {
+		if (resolve_immediate (arg[1] + 1, &src_imm)) {
+			parse_register ("dptr", &dst_addr);
+			(*out)[0] = 0x90;
+			(*out)[1] = src_imm >> 8;
+			(*out)[2] = src_imm & 0xff;
+			*out += 3;
+			return true;
+		}
+	}
+	if (address_bit (arg[0], &src_addr)) {
+		if (!r_str_casecmp (arg[1], "c")) {
+			return singlearg_bit (0x92, arg[0], out);
+		}
+
+		if (address_bit (arg[1], &src_addr)) {
+			return singlearg_bit (0xa2, arg[1], out);
+		}
+	}
+
+	if (is_direct (arg[0])) {
 		if (!r_str_casecmp (arg[1], "a")) {
-			return singlearg_register (0xf8, arg[0], out);
+			return singlearg_direct (0xf5, arg[0], out);
 		}
-		if (arg[1][0] == '#') {
-			return singlearg_immediate (
-				0x78 | register_number (arg[0])
-				, arg[1]
-				, out);
-		}
-		return singlearg_direct (0xa8 | register_number (arg[0])
-			, arg[1]
-			, out);
 	}
-	if (!r_str_casecmp (arg[1], "c")) {
-		return singlearg_bit (0x92, arg[0], out);
-	}
-	if (!r_str_casecmp (arg[1], "a")) {
-		return singlearg_direct (0xf5,  arg[0], out);
-	}
-	if (is_reg (arg[1])) {
-		return singlearg_direct (0x88 | register_number (arg[1])
-			, arg[0]
-			, out);
-	}
-	if (is_indirect_reg (arg[1])) {
-		return singlearg_direct (0x86 | register_number (arg[1])
-			, arg[0]
-			, out);
-	}
-	ut8 dest_addr;
-	if (!address_direct (arg[0], &dest_addr)) {
-		return false;
-	}
-	if (arg[1][0] == '#') {
-		ut16 imm;
-		if (!resolve_immediate (arg[1] + 1, &imm)) {
-			return false;
-		}
-		(*out)[0] = 0x75;
-		(*out)[1] = dest_addr;
-		(*out)[2] = imm & 0x00FF;
-		*out += 3;
-		return true;
-	}
-	ut8 src_addr;
-	if (!address_direct (arg[1], &src_addr)) {
-		return false;
-	}
-	(*out)[0] = 0x85;
-	(*out)[1] = src_addr;
-	(*out)[2] = dest_addr;
-	*out += 3;
-	return true;
+
+	return false;
 }
 
 static bool mnem_movc(char const*const*arg, ut16 pc, ut8**out) {
@@ -1021,7 +1124,7 @@ static bool mnem_orl(char const*const*arg, ut16 pc, ut8**out) {
 	}
 
 	ut8 dest_addr;
-	if (!address_direct (arg[0], &dest_addr)) {
+	if (!parse_address_direct (arg[0], &dest_addr)) {
 		return false;
 	}
 	ut16 imm;
@@ -1128,36 +1231,38 @@ static bool mnem_swap(char const*const*arg, ut16 pc, ut8**out) {
 }
 
 static bool mnem_xrl(char const*const*arg, ut16 pc, ut8**out) {
-	if (!r_str_casecmp (arg[0], "a")) {
-		if (is_indirect_reg (arg[1])) {
-			return singlearg_register (0x66, arg[1], out);
+	ut16 dest_hexadecimal;
+	ut8 offset;
+	if (parse_hexadecimal (arg[0], &dest_hexadecimal)) {
+		if (!r_str_casecmp (arg[1], "a")) {
+			return singlearg_direct (0x62, arg[0], out);
 		}
+		if (arg[1][0] == '#') {
+			(*out)[0] = 0x63;
+			parse_hexadecimal (arg[0], &dest_hexadecimal);
+			(*out)[1] = dest_hexadecimal;
+			parse_hexadecimal (arg[1] + 1, &dest_hexadecimal);
+			(*out)[2] = dest_hexadecimal;
+			*out += 3;
+			return true;
+		}
+	}
+	if (!r_str_casecmp (arg[0], "a")) {
 		if (arg[1][0] == '#') {
 			return singlearg_immediate (0x64, arg[1], out);
 		}
-		if (is_reg (arg[1])) {
-			return singlearg_register (0x68, arg[1], out);
+		if (parse_hexadecimal (arg[1], &dest_hexadecimal)) {
+			return singlearg_direct (0x65, arg[1], out);
 		}
-		return singlearg_direct (0x65, arg[1], out);
-	}
-	if (arg[1][0] != '#') {
-		if (r_str_casecmp (arg[1], "a")) {
-			return false;
+
+		offset = register_offset (arg[1]);
+		if (offset < 2) {
+			return singlearg_register (0x66 + offset, arg[1], out);
 		}
-		return singlearg_direct (0x62, arg[0], out);
+		if (offset < 10) {
+			return single_byte_instr (0x66 + offset, out);
+		}
 	}
-	ut8 dest_addr;
-	if (!address_direct (arg[0], &dest_addr)) {
-		return false;
-	}
-	ut16 imm;
-	if (!resolve_immediate (arg[1] + 1, &imm)) {
-		return false;
-	}
-	(*out)[0] = 0x63;
-	(*out)[1] = dest_addr;
-	(*out)[2] = imm & 0x00FF;
-	*out += 3;
 	return true;
 }
 
@@ -1184,14 +1289,17 @@ static bool mnem_xchd(char const*const*arg, ut16 pc, ut8**out) {
 	return singlearg_register (0xd6, arg[1], out);
 }
 
+static bool mnem_reserved(char const*const*arg, ut16 pc, ut8**out) {
+	return single_byte_instr (0xa5, out);
+}
+
 /******************************************************************************
  * ## Section 6: mnemonic token dispatcher
                  -------------------------*/
 
 static parse_mnem_args mnemonic(char const *user_asm, int*nargs) {
-	return match_prefix_f (nargs, user_asm, (ftable){
+	return match_prefix_f (nargs, user_asm, (ftable) {
 	#define mnem(n, mn) { #mn " ", &mnem_ ## mn, n },
-	#define zeroarg_mnem(mn) { #mn , &mnem_ ## mn, 0 },
 		mnem (1, acall)
 		mnem (2, addc)
 		mnem (2, add)
@@ -1215,6 +1323,7 @@ static parse_mnem_args mnemonic(char const *user_asm, int*nargs) {
 		mnem (1, jnz)
 		mnem (1, lcall)
 		mnem (1, ljmp)
+		mnem (0, reserved)
 /* so uh, the whitespace-independent matching sees movc and mov c as the same
  * thing...
  * My first thought was to add an exception for mov c, but later I saw that it'd
@@ -1240,9 +1349,9 @@ static parse_mnem_args mnemonic(char const *user_asm, int*nargs) {
 		mnem (1, sjmp)
 		mnem (2, subb)
 		mnem (1, swap)
-		zeroarg_mnem (nop)
-		zeroarg_mnem (reti)
-		zeroarg_mnem (ret)
+		mnem (0, nop)
+		mnem (0, reti)
+		mnem (0, ret)
 	#undef mnem
 		{0}});
 }
@@ -1277,25 +1386,28 @@ int assemble_8051(RAsm *a, RAsmOp *op, char const *user_asm) {
 		not without compiler warnings, at least */
 	int wants_arguments;
 	parse_mnem_args mnem = mnemonic (user_asm, &wants_arguments);
+
 	if (!mnem || nr_of_arguments != wants_arguments) {
 		free (arg[2]); arg[2] = 0; carg[2] = 0;
 		free (arg[1]); arg[1] = 0; carg[1] = 0;
 		free (arg[0]); arg[0] = 0; carg[0] = 0;
 		return 0;
 	}
+
 	ut8 instr[4] = {0};
 	ut8 *binp = instr;
 	if (!mnem (carg, a->pc, &binp)) {
-		free (arg[0]); arg[0] = 0; carg[2] = 0;
-		free (arg[1]); arg[1] = 0; carg[1] = 0;
-		free (arg[2]); arg[2] = 0; carg[0] = 0;
+		R_FREE (arg[0]);
+		R_FREE (arg[1]);
+		R_FREE (arg[2]);
 		return 0;
-	} else {
-		free (arg[0]); arg[0] = 0; carg[2] = 0;
-		free (arg[1]); arg[1] = 0; carg[1] = 0;
-		free (arg[2]); arg[2] = 0; carg[0] = 0;
-		size_t len = binp - instr;
-		r_strbuf_setbin (&op->buf, instr, len);
-		return binp - instr;
 	}
+
+	R_FREE (arg[0]);
+	R_FREE (arg[1]);
+	R_FREE (arg[2]);
+	size_t len = binp - instr;
+	r_strbuf_setbin (&op->buf, instr, len);
+
+	return binp - instr;
 }

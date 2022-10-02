@@ -23,7 +23,7 @@ typedef struct {
 #define RIOPTRACE_OPID(x) (((RIOPtrace*)(x)->data)->opid)
 #define RIOPTRACE_PID(x) (((RIOPtrace*)(x)->data)->pid)
 #define RIOPTRACE_FD(x) (((RIOPtrace*)(x)->data)->fd)
-static void open_pidmem (RIOPtrace *iop);
+static void open_pidmem(RIOPtrace *iop);
 
 #undef R_IO_NFDS
 #define R_IO_NFDS 2
@@ -152,7 +152,7 @@ static int __write(RIO *io, RIODesc *fd, const ut8 *buf, int len) {
 	return ptrace_write_at (io, RIOPTRACE_PID (fd), buf, len, io->off);
 }
 
-static void open_pidmem (RIOPtrace *iop) {
+static void open_pidmem(RIOPtrace *iop) {
 #if USE_PROC_PID_MEM
 	char pidmem[32];
 	snprintf (pidmem, sizeof (pidmem), "/proc/%d/mem", iop->pid);
@@ -189,14 +189,14 @@ static bool __plugin_open(RIO *io, const char *file, bool many) {
 
 static inline bool is_pid_already_attached(RIO *io, int pid) {
 #if defined(__linux__)
-	siginfo_t sig = { 0 };
+	siginfo_t sig = {0};
 	return r_io_ptrace (io, PTRACE_GETSIGINFO, pid, NULL, &sig) != -1;
 #elif defined(__FreeBSD__)
-	struct ptrace_lwpinfo info = { 0 };
+	struct ptrace_lwpinfo info = {0};
 	int len = (int)sizeof (info);
 	return r_io_ptrace (io, PT_LWPINFO, pid, &info, len) != -1;
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
-	ptrace_state_t state = { 0 };
+	ptrace_state_t state = {0};
 	int len = (int)sizeof (state);
 	return r_io_ptrace (io, PT_GET_PROCESS_STATE, pid, &state, len) != -1;
 #else
@@ -228,7 +228,7 @@ static RIODesc *__open(RIO *io, const char *file, int rw, int mode) {
 				eprintf ("ptrace_attach: Operation not permitted\n");
 				break;
 			case EINVAL:
-				perror ("ptrace: Cannot attach");
+				r_sys_perror ("ptrace: Cannot attach");
 				eprintf ("ERRNO: %d (EINVAL)\n", errno);
 				break;
 			default:
@@ -332,7 +332,7 @@ static char *__system(RIO *io, RIODesc *fd, const char *cmd) {
 	return NULL;
 }
 
-static int __getpid (RIODesc *fd) {
+static int __getpid(RIODesc *fd) {
 	RIOPtrace *iop = (RIOPtrace *)fd->data;
 	if (!iop) {
 		return -1;

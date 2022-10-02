@@ -9,7 +9,7 @@ R_API void r_socket_http_server_set_breaked(bool *b) {
 	breaked = b;
 }
 
-R_API RSocketHTTPRequest *r_socket_http_accept (RSocket *s, RSocketHTTPOptions *so) {
+R_API RSocketHTTPRequest *r_socket_http_accept(RSocket *s, RSocketHTTPOptions *so) {
 	int content_length = 0, xx, yy;
 	int pxx = 1, first = 0;
 	char buf[1500], *p, *q;
@@ -106,11 +106,12 @@ R_API RSocketHTTPRequest *r_socket_http_accept (RSocket *s, RSocketHTTPOptions *
 	}
 	if (content_length > 0) {
 		r_socket_read_block (hr->s, (ut8*)buf, 1); // one missing byte wtf
-		if (ST32_ADD_OVFCHK (content_length, 1)) {
+		if (content_length >= ST32_MAX) {
 			r_socket_http_close (hr);
 			eprintf ("Could not allocate hr data\n");
 			return NULL;
 		}
+		content_length++;
 		hr->data = malloc (content_length + 1);
 		if (hr->data) {
 			hr->data_length = content_length;

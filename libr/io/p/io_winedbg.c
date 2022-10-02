@@ -187,7 +187,7 @@ static RIODesc *__open(RIO *io, const char *pathname, int rw, int mode) {
 	return NULL;
 }
 
-static void printcmd (RIO *io, const char *cmd) {
+static void printcmd(RIO *io, const char *cmd) {
 	char *res = runcmd (cmd);
 	io->cb_printf ("%s\n", res);
 	free (res);
@@ -317,7 +317,9 @@ const char *msg =
 	} else if (!strncmp (cmd, "dr", 2)) {
 		printcmd (io, "info reg");
 	} else if (!strncmp (cmd, "db ", 3)) {
-		free (runcmd (sdb_fmt ("break *%x", r_num_get (NULL, cmd + 3) || io->off)));
+		int n = r_num_get (NULL, cmd + 3) || io->off;
+		r_strf_var (brkcmd, 32, "break *%x", n);
+		free (runcmd (brkcmd));
 	} else if (!strncmp (cmd, "ds", 2)) {
 		free (runcmd ("stepi"));
 	} else if (!strncmp (cmd, "dc", 2)) {

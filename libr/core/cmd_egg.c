@@ -6,19 +6,19 @@
 
 static const char *help_msg_g[] = {
 	"Usage:", "g[wcilper] [arg]", "Go compile shellcodes",
-	"g", " ", "Compile the shellcode",
-	"g", " foo.r", "Compile r_egg source file",
-	"gw", "", "Compile and write",
-	"gc", " cmd=/bin/ls", "Set config option for shellcodes and encoders",
-	"gc", "", "List all config options",
-	"gL", "[?]", "List plugins (shellcodes, encoders)",
-	"gs", " name args", "Compile syscall name(args)",
-	"gi", " [type]", "Define the shellcode type",
-	"git", " [...]", "Your favourite version control",
-	"gp", " padding", "Define padding for command",
-	"ge", " [encoder] [key]", "Specify an encoder and a key",
-	"gr", "", "Reset r_egg",
-	"gS", "", "Show the current configuration",
+	"g", " ", "compile the shellcode",
+	"g", " foo.r", "compile r_egg source file",
+	"gw", "", "compile and write",
+	"gc", " cmd=/bin/ls", "set config option for shellcodes and encoders",
+	"gc", "", "list all config options",
+	"gL", "[?]", "list plugins (shellcodes, encoders)",
+	"gs", " name args", "compile syscall name(args)",
+	"gi", " [type]", "define the shellcode type",
+	"git", " [...]", "your favourite version control",
+	"gp", " padding", "define padding for command",
+	"ge", " [encoder] [key]", "specify an encoder and a key",
+	"gr", "", "reset r_egg",
+	"gS", "", "show the current configuration",
 	"EVAL VARS:", "", "asm.arch, asm.bits, asm.os",
 	NULL
 };
@@ -133,7 +133,7 @@ static int cmd_egg(void *data, const char *input) {
 	char *oa, *p;
 	r_egg_setup (egg,
 		r_config_get (core->config, "asm.arch"),
-		core->rasm->bits, 0,
+		core->rasm->config->bits, 0,
 		r_config_get (core->config, "asm.os")); // XXX
 	switch (*input) {
 	case 's': // "gs"
@@ -256,9 +256,10 @@ static int cmd_egg(void *data, const char *input) {
 			}
 		}
 		r_cons_printf ("\nTarget options\n");
-		r_cons_printf ("arch : %s\n", core->anal->cpu);
-		r_cons_printf ("os   : %s\n", core->anal->os);
-		r_cons_printf ("bits : %d\n", core->anal->bits);
+		RArchConfig *ac = core->anal->config;
+		r_cons_printf ("arch : %s\n", ac->cpu);
+		r_cons_printf ("os   : %s\n", ac->os);
+		r_cons_printf ("bits : %d\n", ac->bits);
 	}
 	break;
 	case 'r': // "gr"

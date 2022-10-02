@@ -286,7 +286,8 @@ static int getTextProperties(const char *text, bool *isNumeric, bool *isAlphanum
 		char c = *p;
 		if (c < '0' || c > '9') {
 			*isNumeric = false;
-			*isAlphanumeric &= strchr (ALPHANUMERIC_CHARSET, c) != NULL;
+			bool is_alpha = strchr (ALPHANUMERIC_CHARSET, c);
+			*isAlphanumeric &= is_alpha;
 		}
 	}
 
@@ -1038,7 +1039,7 @@ R_API char *r_qrcode_gen(const ut8 *text, int len, bool utf8, bool inverted) {
 				bmp |= qrcodegen_getModule (qrcode, x + 1, y) << 1;
 				bmp |= qrcodegen_getModule (qrcode, x, y + 1) << 2;
 				bmp |= qrcodegen_getModule (qrcode, x + 1, y + 1) << 3;
-				const char *pixel = 
+				const char *pixel =
 					qrcode_utf8_expansions[
 						inverted
 						? 15 - bmp

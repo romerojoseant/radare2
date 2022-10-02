@@ -83,7 +83,7 @@ extern char **environ;
 #endif
 #endif
 
-R_LIB_VERSION(r_util);
+R_LIB_VERSION (r_util);
 
 #ifdef __x86_64__
 # ifdef _MSC_VER
@@ -140,6 +140,9 @@ static const struct {const char* name; ut64 bit;} arch_bit_array[] = {
 };
 
 R_API int r_sys_fork(void) {
+	if (!r_sandbox_check (R_SANDBOX_GRAIN_EXEC)) {
+		return false;
+	}
 #if HAVE_FORK
 #if __WINDOWS__
 	return -1;
@@ -152,15 +155,15 @@ R_API int r_sys_fork(void) {
 }
 
 #if __WINDOWS__
-R_API int r_sys_sigaction(int *sig, void (*handler) (int)) {
+R_API int r_sys_sigaction(int *sig, void(*handler)(int)) {
 	return -1;
 }
 #elif __wasi__
-R_API int r_sys_sigaction(int *sig, void (*handler)(int)) {
+R_API int r_sys_sigaction(int *sig, void(*handler)(int)) {
 	return 0;
 }
 #elif HAVE_SIGACTION
-R_API int r_sys_sigaction(int *sig, void (*handler) (int)) {
+R_API int r_sys_sigaction(int *sig, void(*handler)(int)) {
 	struct sigaction sigact = { };
 	int ret, i;
 
@@ -185,7 +188,7 @@ R_API int r_sys_sigaction(int *sig, void (*handler) (int)) {
 	return 0;
 }
 #else
-R_API int r_sys_sigaction(int *sig, void (*handler)(int)) {
+R_API int r_sys_sigaction(int *sig, void(*handler)(int)) {
 	if (!sig) {
 		return -EINVAL;
 	}
@@ -201,7 +204,7 @@ R_API int r_sys_sigaction(int *sig, void (*handler)(int)) {
 }
 #endif
 
-R_API int r_sys_signal(int sig, void (*handler) (int)) {
+R_API int r_sys_signal(int sig, void(*handler)(int)) {
 	int s[2] = { sig, 0 };
 	return r_sys_sigaction (s, handler);
 }
@@ -220,11 +223,7 @@ R_API int r_sys_truncate(const char *file, int sz) {
 	if (fd == -1) {
 		return false;
 	}
-#ifdef _MSC_VER
 	int r = _chsize (fd, sz);
-#else
-	int r = ftruncate (fd, sz);
-#endif
 	if (r != 0) {
 		eprintf ("Could not resize '%s' file\n", file);
 		close (fd);
@@ -321,7 +320,7 @@ R_API void r_sys_backtrace(void) {
 #ifdef HAVE_BACKTRACE
 	void *array[10];
 	size_t size = backtrace (array, 10);
-	eprintf ("Backtrace %zd stack frames.\n", size);
+	eprintf ("Backtrace %d stack frames.\n", (int)size);
 	backtrace_symbols_fd (array, size, 2);
 #elif __APPLE__
 	void **fp = (void **) __builtin_frame_address (0);
@@ -441,7 +440,11 @@ static void signal_handler(int signum) {
 	if (!crash_handler_cmd) {
 		return;
 	}
+#if __wasi__ || EMSCRIPTEN
+	char *cmd = r_str_newf ("%s %d", crash_handler_cmd, 0);
+#else
 	char *cmd = r_str_newf ("%s %d", crash_handler_cmd, r_sys_getpid ());
+#endif
 	int rc = 1;
 	if (cmd) {
 		r_sys_backtrace ();
@@ -497,7 +500,7 @@ R_API char *r_sys_getenv(const char *key) {
 	if (!key) {
 		return NULL;
 	}
-	envbuf = (LPTSTR)malloc (sizeof (TCHAR) * TMP_BUFSIZE);
+	envbuf = (LPTSTR)calloc (sizeof (TCHAR), TMP_BUFSIZE);
 	if (!envbuf) {
 		goto err_r_sys_get_env;
 	}
@@ -798,16 +801,16 @@ R_API int r_sys_cmdf(const char *fmt, ...) {
 	return ret;
 }
 
-R_API int r_sys_cmdbg (const char *str) {
+R_API int r_sys_cmdbg(const char *str) {
 #if __UNIX__
-	int ret, pid = r_sys_fork ();
+	int pid = r_sys_fork ();
 	if (pid == -1) {
 		return -1;
 	}
-	if (pid) {
+	if (pid > 0) {
 		return pid;
 	}
-	ret = r_sandbox_system (str, 0);
+	int ret = r_sandbox_system (str, 0);
 	eprintf ("{exit: %d, pid: %d, cmd: \"%s\"}", ret, pid, str);
 	exit (0);
 	return -1;
@@ -882,7 +885,9 @@ R_API bool r_sys_mkdirp(const char *dir) {
 		}
 		*ptr = 0;
 		if (!r_sys_mkdir (path) && r_sys_mkdir_failed ()) {
-			eprintf ("r_sys_mkdirp: fail '%s' of '%s'\n", path, dir);
+			if (r_sandbox_check (R_SANDBOX_GRAIN_FILES)) {
+				eprintf ("r_sys_mkdirp: fail '%s' of '%s'\n", path, dir);
+			}
 			free (path);
 			return false;
 		}
@@ -916,13 +921,13 @@ R_API void r_sys_perror_str(const char *fun) {
 			0, NULL )) {
 		char *err = r_sys_conv_win_to_utf8 (lpMsgBuf);
 		if (err) {
-			eprintf ("%s: (%#lx) %s%s", fun, dw, err,
-			         r_str_endswith (err, "\n") ? "" : "\n");
+			R_LOG_WARN ("%s: (%#lx) %s%s", fun, dw, err,
+				r_str_endswith (err, "\n") ? "" : "\n");
 			free (err);
 		}
 		LocalFree (lpMsgBuf);
 	} else {
-		eprintf ("%s\n", fun);
+		R_LOG_INFO ("%s", fun);
 	}
 #endif
 }
@@ -1048,14 +1053,14 @@ R_API int r_sys_run_rop(const ut8 *buf, int len) {
 	} else {
 		R_SYS_ASM_START_ROP ();
 		exit (0);
-                return 0;
+		return 0;
 	}
 	st = 0;
 	if (waitpid (pid, &st, 0) == -1) {
-            eprintf ("r_sys_run_rop: waitpid failed\n");
-            free (bufptr);
-            return -1;
-        }
+		eprintf ("r_sys_run_rop: waitpid failed\n");
+		free (bufptr);
+		return -1;
+	}
 	if (WIFSIGNALED (st)) {
 		int num = WTERMSIG (st);
 		eprintf ("Got signal %d\n", num);
@@ -1074,9 +1079,9 @@ R_API int r_sys_run_rop(const ut8 *buf, int len) {
 // w32 specific API
 R_API char *r_w32_handle_to_path(HANDLE processHandle) {
 	const DWORD maxlength = MAX_PATH;
-	TCHAR filename[MAX_PATH];
+	char *filename = calloc ((MAX_PATH * 2) + 2, 1);
 	char *result = NULL;
-	DWORD length = r_w32_GetModuleFileNameEx (processHandle, NULL, filename, maxlength);
+	DWORD length = r_w32_GetModuleFileNameEx (processHandle, NULL, (LPSTR)filename, maxlength);
 	if (length == 0) {
 		// Upon failure fallback to GetProcessImageFileName
 		length = r_w32_GetProcessImageFileName (processHandle, filename, maxlength);
@@ -1109,8 +1114,7 @@ R_API char *r_w32_handle_to_path(HANDLE processHandle) {
 			eprintf ("r_sys_pid_to_path: Error allocating memory\n");
 			return NULL;
 		}
-		strncpy (tmp, name, length);
-		tmp[length] = '\0';
+		r_str_ncpy (tmp, name, length);
 		TCHAR device[MAX_PATH];
 		TCHAR drv[3] = {'A',':', 0};
 		for (; drv[0] <= 'Z'; drv[0]++) {
@@ -1149,6 +1153,7 @@ R_API char *r_w32_handle_to_path(HANDLE processHandle) {
 	} else {
 		result = r_sys_conv_win_to_utf8 (filename);
 	}
+	free (filename);
 	return result;
 }
 #endif
@@ -1240,23 +1245,29 @@ R_API void r_sys_set_environ(char **e) {
 }
 
 R_API char *r_sys_whoami(void) {
-	char buf[32];
 #if __WINDOWS__
+	char buf[256];
 	DWORD buf_sz = sizeof (buf);
-	if (!GetUserName (buf, (LPDWORD)&buf_sz) ) {
+	if (!GetUserName ((LPSTR)buf, (LPDWORD)&buf_sz) ) {
 		return strdup ("?");
 	}
+	return strdup (buf);
 #elif __wasi__
-	strcpy (buf, "user");
+	return strdup ("user");
+#elif HAVE_TH_LOCAL
+	char *user = r_sys_getenv ("USER");
+	return user? user: r_str_newf ("uid%d", getuid ());
 #else
+	char buf[32];
+	// XXX this is not thread safe and getpwuid_r is not available
 	struct passwd *pw = getpwuid (getuid ());
 	if (pw) {
 		return strdup (pw->pw_name);
 	}
 	int uid = getuid ();
 	snprintf (buf, sizeof (buf), "uid%d", uid);
-#endif
 	return strdup (buf);
+#endif
 }
 
 R_API int r_sys_uid(void) {
@@ -1265,8 +1276,8 @@ R_API int r_sys_uid(void) {
 	char buf[32];
 	DWORD buf_sz = sizeof (buf);
 	// TODO
-	if (!GetUserName (buf, (LPDWORD)&buf_sz) ) {
-		return 1; // 
+	if (!GetUserName ((LPSTR)buf, (LPDWORD)&buf_sz) ) {
+		return 1; //
 	}
 	return 0;
 #elif __wasi__
@@ -1282,7 +1293,7 @@ R_API int r_sys_getpid(void) {
 #elif __UNIX__
 	return getpid ();
 #elif __WINDOWS__
-	return GetCurrentProcessId();
+	return (int)GetCurrentProcessId ();
 #else
 #pragma message ("r_sys_getpid not implemented for this platform")
 	return -1;
@@ -1308,8 +1319,9 @@ R_API bool r_sys_tts(const char *txt, bool bg) {
 	return false;
 }
 
+static R_TH_LOCAL char *prefix = NULL;
+
 R_API const char *r_sys_prefix(const char *pfx) {
-	static char *prefix = NULL;
 	if (!prefix) {
 #if __WINDOWS__
 		prefix = r_sys_get_src_dir_w32 ();
@@ -1404,10 +1416,12 @@ beach:
 }
 
 R_API void r_sys_info_free(RSysInfo *si) {
-	free (si->sysname);
-	free (si->nodename);
-	free (si->release);
-	free (si->version);
-	free (si->machine);
-	free (si);
+	if (si) {
+		free (si->sysname);
+		free (si->nodename);
+		free (si->release);
+		free (si->version);
+		free (si->machine);
+		free (si);
+	}
 }

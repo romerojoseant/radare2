@@ -94,7 +94,7 @@ R_API int r_io_fd_get_tid(RIO *io, int fd) {
 	return r_io_desc_get_tid (desc);
 }
 
-R_API bool r_io_fd_get_base (RIO *io, int fd, ut64 *base) {
+R_API bool r_io_fd_get_base(RIO *io, int fd, ut64 *base) {
 	r_return_val_if_fail (io && io->files && base, false);
 	RIODesc *desc = r_io_desc_get (io, fd);
 	return r_io_desc_get_base (desc, base);
@@ -110,7 +110,7 @@ R_API bool r_io_use_fd(RIO* io, int fd) {
 	r_return_val_if_fail (io, false);
 	if (!io->desc) {
 		io->desc = r_io_desc_get (io, fd);
-		return io->desc != NULL;
+		return io->desc;
 	}
 	if (io->desc->fd != fd) {
 		RIODesc* desc;

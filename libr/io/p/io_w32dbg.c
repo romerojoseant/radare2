@@ -131,7 +131,7 @@ static int __open_proc(RIO *io, int pid, bool attach) {
 	DEBUG_EVENT de;
 	int ret = -1;
 	if (!io->dbgwrap) {
-		io->dbgwrap = (struct r_w32dw_instance_t *)r_w32dw_new ();
+		io->dbgwrap = r_w32dw_new ();
 	}
 
 	HANDLE h_proc = OpenProcess (PROCESS_ALL_ACCESS, FALSE, pid);
@@ -181,6 +181,9 @@ att_exit:
 static RIODesc *__open(RIO *io, const char *file, int rw, int mode) {
 	if (__plugin_open (io, file, 0)) {
 		RIODesc *ret;
+		if (!r_sandbox_check (R_SANDBOX_GRAIN_EXEC)) {
+			return NULL;
+		}
 		if (__open_proc (io, atoi (file + 9), !strncmp (file, "attach://", 9)) == -1) {
 			return NULL;
 		}

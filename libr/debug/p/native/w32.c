@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2010-2021 - pancake, xvilka, gustavo */
+/* radare - LGPL - Copyright 2010-2022 - pancake, xvilka, gustavo */
 
 #include "w32.h"
 
@@ -25,9 +25,9 @@ static HANDLE w32_t2h(pid_t tid) {
 #endif
 
 inline static int w32_h2t(HANDLE h) {
-	if (w32_GetThreadId != NULL) // >= Windows Vista
+	if (w32_GetThreadId) // >= Windows Vista
 		return w32_GetThreadId (h);
-	if (w32_GetProcessId != NULL) // >= Windows XP1
+	if (w32_GetProcessId) // >= Windows XP1
 		return w32_GetProcessId (h);
 	return (int)(size_t)h; // XXX broken
 }
@@ -122,7 +122,7 @@ static bool debug_exception_event(DEBUG_EVENT *de) {
 	return false;
 }
 
-static char *get_file_name_from_handle (HANDLE handle_file) {
+static char *get_file_name_from_handle(HANDLE handle_file) {
 	HANDLE handle_file_map = NULL;
 	LPTSTR filename = NULL;
 	DWORD file_size_high = 0;
@@ -189,7 +189,7 @@ err_get_file_name_from_handle:
 	return NULL;
 }
 /*
-static char * r_debug_get_dll(void) {
+static char *r_debug_get_dll(void) {
 	return lstLibPtr->Path;
 }
 */
@@ -197,7 +197,7 @@ static PLIB_ITEM r_debug_get_lib_item(void) {
 	return lstLibPtr;
 }
 
-static void r_debug_lstLibAdd(DWORD pid,LPVOID lpBaseOfDll, HANDLE hFile,char * dllname) {
+static void r_debug_lstLibAdd(DWORD pid,LPVOID lpBaseOfDll, HANDLE hFile,char *dllname) {
 	int x;
 	if (lstLib == 0) {
 		lstLib = VirtualAlloc (0, PLIB_MAX * sizeof (LIB_ITEM), MEM_COMMIT, PAGE_READWRITE);
@@ -210,11 +210,11 @@ static void r_debug_lstLibAdd(DWORD pid,LPVOID lpBaseOfDll, HANDLE hFile,char * 
 			lstLibPtr->BaseOfDll = lpBaseOfDll;//DBGEvent->u.LoadDll.lpBaseOfDll;
 			strncpy (lstLibPtr->Path,dllname,MAX_PATH-1);
 			int i = strlen (dllname);
-                        int n = i;
-                        while (dllname[i] != '\\' && i >= 0) {
-                             i--;
-                        }
-                        strncpy (lstLibPtr->Name, &dllname[i+1], n-i);
+			int n = i;
+			while (dllname[i] != '\\' && i >= 0) {
+				i--;
+			}
+			strncpy (lstLibPtr->Name, &dllname[i+1], n-i);
 			return;
 		}
 		lstLibPtr++;
@@ -222,7 +222,7 @@ static void r_debug_lstLibAdd(DWORD pid,LPVOID lpBaseOfDll, HANDLE hFile,char * 
 	eprintf ("r_debug_lstLibAdd: Cannot find slot\n");
 }
 
-static void * r_debug_findlib(void * BaseOfDll) {
+static void * r_debug_findlib(void *BaseOfDll) {
 	PLIB_ITEM libPtr = NULL;
 	if (lstLib) {
 		libPtr = (PLIB_ITEM)lstLib;
@@ -238,13 +238,13 @@ static void * r_debug_findlib(void * BaseOfDll) {
 	return NULL;
 }
 
-static PTHREAD_ITEM r_debug_get_thread_item (void) {
+static PTHREAD_ITEM r_debug_get_thread_item(void) {
 	return lstThreadPtr;
 }
 #define CONST_ThreadQuerySetWin32StartAddress 9
 #define PTHREAD_MAX 1024
 
-static void r_debug_lstThreadAdd (DWORD pid, DWORD tid, HANDLE hThread, LPVOID  lpThreadLocalBase, LPVOID lpStartAddress, BOOL bFinished) {
+static void r_debug_lstThreadAdd(DWORD pid, DWORD tid, HANDLE hThread, LPVOID  lpThreadLocalBase, LPVOID lpStartAddress, BOOL bFinished) {
 	int x;
 	PVOID startAddress = 0;
 	if (lstThread == 0) {
@@ -269,7 +269,7 @@ static void r_debug_lstThreadAdd (DWORD pid, DWORD tid, HANDLE hThread, LPVOID  
 	eprintf ("r_debug_lstThreadAdd: Cannot find slot\n");
 }
 
-static void * r_debug_findthread (int pid, int tid) {
+static void *r_debug_findthread(int pid, int tid) {
 	PTHREAD_ITEM threadPtr = NULL;
 	if (lstThread) {
 		threadPtr = (PTHREAD_ITEM)lstThread;
@@ -362,7 +362,7 @@ int w32_dbg_wait(RDebug *dbg, int pid) {
 		case UNLOAD_DLL_DEBUG_EVENT:
 			//eprintf ("(%d) Unloading library at %p\n", pid, de.u.UnloadDll.lpBaseOfDll);
 			lstLibPtr = (PLIB_ITEM)r_debug_findlib (de.u.UnloadDll.lpBaseOfDll);
-			if (lstLibPtr != NULL) {
+			if (lstLibPtr) {
 				lstLibPtr->hFile = (HANDLE)-1;
 			} else {
 				r_debug_lstLibAdd (pid, de.u.UnloadDll.lpBaseOfDll, (HANDLE)-1, "not cached");
@@ -447,14 +447,14 @@ static HANDLE w32_open_thread(int pid, int tid) {
 }
 
 RList *w32_thread_list(int pid, RList *list) {
-        HANDLE thid;
-        THREADENTRY32 te32;
+	HANDLE thid;
+	THREADENTRY32 te32;
 
-        te32.dwSize = sizeof (THREADENTRY32);
+	te32.dwSize = sizeof (THREADENTRY32);
 
-        HANDLE th = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, pid);
-        if (th == INVALID_HANDLE_VALUE || !Thread32First (th, &te32)) {
-                goto err_load_th;
+	HANDLE th = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, pid);
+	if (th == INVALID_HANDLE_VALUE || !Thread32First (th, &te32)) {
+		goto err_load_th;
 	}
 	do {
 		// get all threads of process
@@ -627,7 +627,7 @@ static int GetAVX(HANDLE hThread, ut128 xmm[16], ut128 ymm[16]) {
 		return 0;
 	}
 	Xmm = (ut128 *)r_w32_LocateXStateFeature(Context, XSTATE_LEGACY_SSE, &FeatureLength);
-        nRegs = FeatureLength / sizeof (*Xmm);
+	nRegs = FeatureLength / sizeof (*Xmm);
 	for (Index = 0; Index < nRegs; Index++) {
 		ymm[Index].High = 0;
 		xmm[Index].High = 0;
@@ -652,7 +652,7 @@ static int GetAVX(HANDLE hThread, ut128 xmm[16], ut128 ymm[16]) {
 	return nRegs;
 }
 
-static void printwincontext(HANDLE hThread, CONTEXT * ctx) {
+static void printwincontext(HANDLE hThread, CONTEXT *ctx) {
 	ut128 xmm[16];
 	ut128 ymm[16];
 	ut80 st[8];
@@ -812,7 +812,7 @@ static void w32_info_user(RDebug *dbg, RDebugInfo *rdi) {
 	}
 	tok_usr = (PTOKEN_USER)malloc (tok_len);
 	if (!tok_usr) {
-		perror ("w32_info_user/malloc tok_usr");
+		r_sys_perror ("w32_info_user/malloc tok_usr");
 		goto err_w32_info_user;
 	}
 	if (!GetTokenInformation (h_tok, TokenUser, (LPVOID)tok_usr, tok_len, &tok_len)) {
@@ -821,13 +821,13 @@ static void w32_info_user(RDebug *dbg, RDebugInfo *rdi) {
 	}
 	usr = (LPTSTR)malloc (usr_len);
 	if (!usr) {
-		perror ("w32_info_user/malloc usr");
+		r_sys_perror ("w32_info_user/malloc usr");
 		goto err_w32_info_user;
 	}
 	*usr = '\0';
 	usr_dom = (LPTSTR)malloc (usr_dom_len);
 	if (!usr_dom) {
-		perror ("w32_info_user/malloc usr_dom");
+		r_sys_perror ("w32_info_user/malloc usr_dom");
 		goto err_w32_info_user;
 	}
 	*usr_dom = '\0';
@@ -860,7 +860,7 @@ static void w32_info_exe(RDebug *dbg, RDebugInfo *rdi) {
 	}
 	LPTSTR path = (LPTSTR)malloc (MAX_PATH + 1);
 	if (!path) {
-		perror ("w32_info_exe/malloc path");
+		r_sys_perror ("w32_info_exe/malloc path");
 		goto err_w32_info_exe;
 	}
 	DWORD len = MAX_PATH;

@@ -1,4 +1,4 @@
-FILES=pokered ascii ebcdic37
+FILES=pokered ascii ebcdic37 iso8859_1 katakana hiragana
 F_SDB=$(addsuffix .sdb,$(FILES))
 SDB=../../../shlr/sdb/sdb
 
@@ -16,7 +16,7 @@ alle: $(F_SDB)
 	test -f $@
 
 clean:
-	rm -f *.sdb *.c *.gperf
+	rm -f *.sdb *.c *.gperf *.o *.d
 
 install:
 	mkdir -p "$(R2_CHARSETS_PATH)"

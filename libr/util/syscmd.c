@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2013-2021 - pancake */
+/* radare - LGPL - Copyright 2013-2022 - pancake */
 
 #include <r_core.h>
 #include <errno.h>
@@ -8,6 +8,8 @@
 #define FMT_JSON 'j'
 #define FMT_QUIET 'q'
 #define FMT_EMOJI 'e'
+
+R_TH_LOCAL RList *dirstack = NULL;
 
 static char *showfile(char *res, const int nth, const char *fpath, const char *name, int printfmt, bool needs_newline) {
 #if __UNIX__
@@ -170,7 +172,7 @@ R_API char *r_syscmd_ls(const char *input, int cons_width) {
 	}
 	if (*input) {
 		if (!strncmp (input, "-h", 2) || *input == '?') {
-			eprintf ("Usage: ls ([-e,-l,-j,-q]) ([path]) # long, json, quiet\n");
+			eprintf ("Usage: ls [-e,-l,-j,-q] [path] # long, json, quiet\n");
 			return NULL;
 		}
 		if ((!strncmp (input, "-e", 2))) {
@@ -236,6 +238,12 @@ R_API char *r_syscmd_ls(const char *input, int cons_width) {
 		return res;
 	}
 	RList *files = r_sys_dir (path);
+	if (!files) {
+		free (homepath);
+		free (pattern);
+		free (d);
+		return NULL;
+	}
 	r_list_sort (files, (RListComparator)strcmp);
 
 	if (path[strlen (path) - 1] == '/') {
@@ -289,7 +297,13 @@ R_API char *r_syscmd_ls(const char *input, int cons_width) {
 	return res;
 }
 
-static int cmpstr (const void *_a, const void *_b) {
+static ut64 valstr(const void *_a) {
+	const char *a = _a;
+	return r_str_hash64 (a);
+}
+
+
+static int cmpstr(const void *_a, const void *_b) {
 	const char *a = _a, *b = _b;
 	return (int)strcmp (a, b);
 }
@@ -332,7 +346,7 @@ R_API char *r_syscmd_head(const char *file, int count) {
 		} else {
 			p = file;
 		}
-	} 
+	}
 	if (p && *p) {
 		char *filename = strdup (p);
 		r_str_trim (filename);
@@ -390,7 +404,7 @@ R_API char *r_syscmd_uniq(const char *file) {
 			eprintf ("No such file or directory\n");
 		} else {
 			list = r_str_split_list (data, "\n", 0);
-			RList *uniq_list = r_list_uniq (list, cmpstr);
+			RList *uniq_list = r_list_uniq (list, valstr);
 			data = r_list_to_str (uniq_list, '\n');
 			r_list_free (uniq_list);
 			r_list_free (list);
@@ -498,25 +512,113 @@ R_API char *r_syscmd_cat(const char *file) {
 	return NULL;
 }
 
-R_API char *r_syscmd_mkdir(const char *dir) {
-	const char *suffix = r_str_trim_head_ro (strchr (dir, ' '));
-	if (!suffix || !strncmp (suffix, "-p", 3)) {
-		return r_str_dup (NULL, "Usage: mkdir [-p] [directory]\n");
+R_API char *r_syscmd_mktemp(const char *dir) {
+	const char *space = strchr (dir, ' ');
+	const char *suffix = space? r_str_trim_head_ro (space): "";
+	if (!*suffix || (!strncmp (suffix, "-d ", 3) && strstr (suffix, " -"))) {
+		eprintf ("Usage: mktemp [-d] [file|directory]\n");
+		return NULL;
 	}
+	bool dodir = (bool) strstr (suffix, "-d");
 	int ret;
+	char *dirname = (!strncmp (suffix, "-d ", 3))
+		? strdup (suffix + 3): strdup (suffix);
+	r_str_trim (dirname);
+	char *arg = NULL;
+	if (!*dirname || *dirname == '-') {
+		eprintf ("Usage: mktemp [-d] [file|directory]\n");
+		free (dirname);
+		return NULL;
+	}
+	int fd = r_file_mkstemp (dirname, &arg);
+	if (fd != -1) {
+		ret = 1;
+		close (fd);
+	} else {
+		ret = 0;
+	}
+	if (ret && dodir) {
+		r_file_rm (arg);
+		ret = r_sys_mkdirp (arg);
+	}
+	if (!ret) {
+		eprintf ("Cannot create '%s'\n", dirname);
+		free (dirname);
+		return NULL;
+	}
+	return dirname;
+}
+
+R_API bool r_syscmd_mkdir(const char *dir) {
+	const char *space = strchr (dir, ' ');
+	const char *suffix = space? r_str_trim_head_ro (space): "";
+	if (!*suffix || (!strncmp (suffix, "-p ", 3) && strstr (suffix, " -"))) {
+		eprintf ("Usage: mkdir [-p] [directory]\n");
+		return false;
+	}
 	char *dirname = (!strncmp (suffix, "-p ", 3))
 		? strdup (suffix + 3): strdup (suffix);
 	r_str_trim (dirname);
-	ret = r_sys_mkdirp (dirname);
-	if (!ret) {
+	if (!*dirname || *dirname == '-') {
+		eprintf ("Usage: mkdir [-p] [directory]\n");
+		free (dirname);
+		return false;
+	}
+	if (!r_sys_mkdirp (dirname)) {
 		if (r_sys_mkdir_failed ()) {
-			char *res = r_str_newf ("Cannot create \"%s\"\n", dirname);
+			eprintf ("Cannot create '%s'\n", dirname);
 			free (dirname);
-			return res;
+			return false;
 		}
 	}
 	free (dirname);
-	return NULL;
+	return true;
+}
+
+R_API bool r_syscmd_pushd(const char *input) {
+	if (!dirstack) {
+		dirstack = r_list_newf (free);
+	}
+	char *cwd = r_sys_getdir ();
+	if (!cwd) {
+		eprintf ("Where am I?\n");
+		return false;
+	}
+	bool suc = r_sys_chdir (input);
+	if (suc) {
+		r_list_push (dirstack, cwd);
+	} else {
+		eprintf ("Cannot chdir\n");
+	}
+	return suc;
+}
+
+R_API bool r_syscmd_popd(void) {
+	if (!dirstack) {
+		return false;
+	}
+	char *d = r_list_pop (dirstack);
+	if (d) {
+		r_sys_chdir (d);
+		eprintf ("%s\n", d);
+		free (d);
+	}
+	if (r_list_empty (dirstack)) {
+		r_list_free (dirstack);
+		dirstack = NULL;
+		return false;
+	}
+	return true;
+}
+
+R_API bool r_syscmd_popalld(void) {
+	if (!dirstack || r_list_empty (dirstack)) {
+		return false;
+	}
+	while (r_syscmd_popd ()) {
+		// wait for it
+	}
+	return true;
 }
 
 R_API bool r_syscmd_mv(const char *input) {

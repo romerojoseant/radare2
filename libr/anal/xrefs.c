@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2009-2021 - pancake, nibble, defragger, ret2libc */
+/* radare - LGPL - Copyright 2009-2022 - pancake, nibble, defragger, ret2libc */
 
 #include <r_anal.h>
 #include <r_cons.h>
@@ -8,7 +8,7 @@ static RAnalRef *r_anal_ref_new(ut64 addr, ut64 at, ut64 type) {
 	if (ref) {
 		ref->addr = addr;
 		ref->at = at;
-		ref->type = (type == -1)? R_ANAL_REF_TYPE_CODE: type;
+		ref->type = (type == UT64_MAX)? R_ANAL_REF_TYPE_CODE: type;
 	}
 	return ref;
 }
@@ -96,7 +96,8 @@ static void setxref(HtUP *m, ut64 from, ut64 to, int type) {
 }
 
 // set a reference from FROM to TO and a cross-reference(xref) from TO to FROM.
-R_API bool r_anal_xrefs_set(RAnal *anal, ut64 from, ut64 to, const RAnalRefType type) {
+R_API bool r_anal_xrefs_set(RAnal *anal, ut64 from, ut64 to, const RAnalRefType _type) {
+	RAnalRefType type = _type;
 	r_return_val_if_fail (anal, false);
 	if (from == to) {
 		return false;
@@ -109,8 +110,22 @@ R_API bool r_anal_xrefs_set(RAnal *anal, ut64 from, ut64 to, const RAnalRefType 
 			return false;
 		}
 	}
+	if (!R_ANAL_REF_TYPE_PERM (type)) {
+		// type |= R_ANAL_REF_TYPE_READ;
+		switch (R_ANAL_REF_TYPE_MASK (type)) {
+		case R_ANAL_REF_TYPE_CODE:
+		case R_ANAL_REF_TYPE_CALL:
+		case R_ANAL_REF_TYPE_JUMP:
+			type |= R_ANAL_REF_TYPE_EXEC;
+			break;
+		default:
+			type |= R_ANAL_REF_TYPE_READ;
+			break;
+		}
+	}
 	setxref (anal->dict_xrefs, to, from, type);
 	setxref (anal->dict_refs, from, to, type);
+	R_DIRTY (anal);
 	return true;
 }
 
@@ -129,6 +144,7 @@ R_API bool r_anal_xrefs_deln(RAnal *anal, ut64 from, ut64 to, const RAnalRefType
 		ht_up_delete (d, from);
 	}
 #endif
+	R_DIRTY (anal);
 	return true;
 }
 
@@ -140,6 +156,7 @@ R_API bool r_anal_xref_del(RAnal *anal, ut64 from, ut64 to) {
 	res |= r_anal_xrefs_deln (anal, from, to, R_ANAL_REF_TYPE_CALL);
 	res |= r_anal_xrefs_deln (anal, from, to, R_ANAL_REF_TYPE_DATA);
 	res |= r_anal_xrefs_deln (anal, from, to, R_ANAL_REF_TYPE_STRING);
+	R_DIRTY (anal);
 	return res;
 }
 
@@ -200,7 +217,7 @@ R_API void r_anal_xrefs_list(RAnal *anal, int rad) {
 	RListIter *iter;
 	RAnalRef *ref;
 	PJ *pj = NULL;
-	RList *list = r_anal_ref_list_new();
+	RList *list = r_anal_ref_list_new ();
 	listxrefs (anal->dict_refs, UT64_MAX, list);
 	sortxrefs (list);
 	if (rad == 'j') {
@@ -211,9 +228,10 @@ R_API void r_anal_xrefs_list(RAnal *anal, int rad) {
 		pj_a (pj);
 	}
 	r_list_foreach (list, iter, ref) {
-		int t = ref->type ? ref->type: ' ';
+		int t = ref->type ? R_ANAL_REF_TYPE_MASK (ref->type): ' ';
 		switch (rad) {
 		case '*':
+			// TODO: export/import the read-write-exec information
 			anal->cb_printf ("ax%c 0x%"PFMT64x" 0x%"PFMT64x"\n", t, ref->addr, ref->at);
 			break;
 		case '\0':
@@ -226,7 +244,8 @@ R_API void r_anal_xrefs_list(RAnal *anal, int rad) {
 				} else {
 					anal->cb_printf ("%40s", "?");
 				}
-				anal->cb_printf (" 0x%"PFMT64x" -> %9s -> 0x%"PFMT64x, ref->at, r_anal_xrefs_type_tostring (t), ref->addr);
+				anal->cb_printf (" 0x%"PFMT64x" > %4s:%s > 0x%"PFMT64x, ref->at,
+					r_anal_ref_type_tostring (t), r_anal_ref_perm_tostring (ref), ref->addr);
 				name = anal->coreb.getNameDelta (anal->coreb.core, ref->addr);
 				if (name) {
 					r_str_replace_ch (name, ' ', 0, true);
@@ -238,7 +257,8 @@ R_API void r_anal_xrefs_list(RAnal *anal, int rad) {
 			}
 			break;
 		case 'q':
-			anal->cb_printf ("0x%08"PFMT64x" -> 0x%08"PFMT64x"  %s\n", ref->at, ref->addr, r_anal_xrefs_type_tostring (t));
+			anal->cb_printf ("0x%08"PFMT64x" -> 0x%08"PFMT64x"  %s:%s\n", ref->at, ref->addr,
+				r_anal_ref_type_tostring (t), r_anal_ref_perm_tostring (ref));
 			break;
 		case 'j':
 			{
@@ -250,7 +270,8 @@ R_API void r_anal_xrefs_list(RAnal *anal, int rad) {
 					free (name);
 				}
 				pj_kn (pj, "from", ref->at);
-				pj_ks (pj, "type", r_anal_xrefs_type_tostring (t));
+				pj_ks (pj, "type", r_anal_ref_type_tostring (t));
+				pj_ks (pj, "perm", r_anal_ref_perm_tostring (ref));
 				pj_kn (pj, "addr", ref->addr);
 				name = anal->coreb.getNameDelta (anal->coreb.core, ref->addr);
 				if (name) {
@@ -273,8 +294,43 @@ R_API void r_anal_xrefs_list(RAnal *anal, int rad) {
 	r_list_free (list);
 }
 
-R_API const char *r_anal_xrefs_type_tostring(RAnalRefType type) {
-	switch (type) {
+R_API char r_anal_ref_perm_tochar(RAnalRef *ref) {
+	if (ref->type & R_ANAL_REF_TYPE_WRITE) {
+		return 'w';
+	}
+	if (ref->type & R_ANAL_REF_TYPE_READ) {
+		return 'r';
+	}
+	if (ref->type & R_ANAL_REF_TYPE_EXEC) {
+		return 'x';
+	}
+	switch (R_ANAL_REF_TYPE_MASK (ref->type)) {
+	case R_ANAL_REF_TYPE_CODE:
+	case R_ANAL_REF_TYPE_CALL:
+	case R_ANAL_REF_TYPE_JUMP:
+		return 'x';
+	}
+	return '-';
+}
+
+R_API const char *r_anal_ref_perm_tostring(RAnalRef *ref) {
+	int perm = R_ANAL_REF_TYPE_PERM (ref->type);
+	if (!perm) {
+		switch (R_ANAL_REF_TYPE_MASK (ref->type)) {
+		case R_ANAL_REF_TYPE_CODE:
+		case R_ANAL_REF_TYPE_CALL:
+		case R_ANAL_REF_TYPE_JUMP:
+			perm = R_ANAL_REF_TYPE_EXEC;
+			break;
+		}
+	}
+	return r_str_rwx_i (perm);
+}
+
+R_API const char *r_anal_ref_type_tostring(RAnalRefType type) {
+	switch (R_ANAL_REF_TYPE_MASK (type)) {
+	case R_ANAL_REF_TYPE_NULL:
+		return "NULL";
 	case R_ANAL_REF_TYPE_CODE:
 		return "CODE";
 	case R_ANAL_REF_TYPE_CALL:
@@ -282,13 +338,42 @@ R_API const char *r_anal_xrefs_type_tostring(RAnalRefType type) {
 	case R_ANAL_REF_TYPE_DATA:
 		return "DATA";
 	case R_ANAL_REF_TYPE_STRING:
-		return "STRING";
-	case R_ANAL_REF_TYPE_NULL:
+		return "STRN";
 	default:
-		return "UNKNOWN";
+		return "UNKN";
 	}
 }
 
+R_API RAnalRefType r_anal_xrefs_type_from_string(const char *s) {
+	RAnalRefType rt = R_ANAL_REF_TYPE_NULL;
+	if (strchr (s, 'r')) {
+		rt |= R_ANAL_REF_TYPE_READ | R_ANAL_REF_TYPE_DATA;
+	}
+	if (strchr (s, 'w')) {
+		rt |= R_ANAL_REF_TYPE_WRITE | R_ANAL_REF_TYPE_DATA;
+	}
+	if (strchr (s, 'x')) {
+		rt |= R_ANAL_REF_TYPE_EXEC;
+	}
+	if (strchr (s, 'c')) {
+		rt |= R_ANAL_REF_TYPE_CODE;
+	}
+	if (strchr (s, 'C')) {
+		rt |= R_ANAL_REF_TYPE_CALL;
+	}
+	if (strchr (s, 'j')) {
+		rt |= R_ANAL_REF_TYPE_JUMP;
+	}
+	if (strchr (s, 'd')) {
+		rt |= R_ANAL_REF_TYPE_DATA;
+	}
+	if (strchr (s, 's')) {
+		rt |= R_ANAL_REF_TYPE_STRING;
+	}
+	return rt;
+}
+
+// TODO: deprecate
 R_API RAnalRefType r_anal_xrefs_type(char ch) {
 	switch (ch) {
 	case R_ANAL_REF_TYPE_CODE:
@@ -363,20 +448,4 @@ R_API RList *r_anal_function_get_refs(RAnalFunction *fcn) {
 R_API RList *r_anal_function_get_xrefs(RAnalFunction *fcn) {
 	r_return_val_if_fail (fcn, NULL);
 	return fcn_get_refs (fcn, fcn->anal->dict_xrefs);
-}
-
-R_API const char *r_anal_ref_type_tostring(RAnalRefType t) {
-	switch (t) {
-	case R_ANAL_REF_TYPE_NULL:
-		return "null";
-	case R_ANAL_REF_TYPE_CODE:
-		return "code";
-	case R_ANAL_REF_TYPE_CALL:
-		return "call";
-	case R_ANAL_REF_TYPE_DATA:
-		return "data";
-	case R_ANAL_REF_TYPE_STRING:
-		return "string";
-	}
-	return "unknown";
 }

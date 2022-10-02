@@ -1,40 +1,22 @@
-/* sdb - MIT - Copyright 2014-2018 - pancake */
+/* sdb - MIT - Copyright 2014-2022 - pancake */
 
 #include "sdb.h"
-#include <stdarg.h>
-#include <string.h>
 
 // TODO: convert into a function
 // TODO: Add 'a' format for array of pointers null terminated??
 // XXX SLOW CONCAT
 #define concat(x) if (x) { \
-	int size = 2+strlen(x?x:"")+(out?strlen(out)+4:0); \
-	if (out) { char *o = realloc (out, size); \
-		if (o) {\
-			strcat (o, ",");\
-			strcat (o, x);\
-			out = o;\
+	int size = 2 + strlen (x? x: "")+(out? strlen (out) + 4: 0); \
+	if (out) { \
+		char *o = (char *)realloc (out, size); \
+		if (o) { \
+			strcat (o, ","); \
+			strcat (o, x); \
+			out = o; \
 		} \
-	} else {\
-		out = strdup (x);\
+	} else { \
+		out = strdup (x); \
 	} \
-}
-
-SDB_API char *sdb_fmt(const char *fmt, ...) {
-#define KL 256
-#define KN 16
-	static char Key[KN][KL];
-	static int n = 0;
-	va_list ap;
-	va_start (ap, fmt);
-	n = (n + 1) % KN;
-	if (fmt) {
-		*Key[n] = 0;
-		vsnprintf (Key[n], KL - 1, fmt, ap);
-		Key[n][KL - 1] = 0;
-	}
-	va_end (ap);
-	return Key[n];
 }
 
 SDB_API char *sdb_fmt_tostr(void *p, const char *fmt) {
@@ -162,12 +144,8 @@ SDB_API int sdb_fmt_init (void *p, const char *fmt) {
 }
 
 static const char *sdb_anext2(const char *str, const char **next) {
-	char *nxt, *p = strchr (str, SDB_RS);
-	if (p) {
-		nxt = p + 1;
-	} else {
-		nxt = NULL;
-	}
+	const char *p = strchr (str, SDB_RS);
+	const char *nxt = (p) ?  p + 1: NULL;
 	if (next) {
 		*next = nxt;
 	}

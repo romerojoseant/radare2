@@ -2,7 +2,7 @@
 
 #include <r_asm.h>
 #include <r_lib.h>
-#include <capstone.h>
+#include <capstone/capstone.h>
 
 #if CS_API_MAJOR >= 4 && CS_API_MINOR >= 0
 #define CAPSTONE_HAS_M680X 1
@@ -19,38 +19,37 @@
 #endif
 
 #if CAPSTONE_HAS_M680X
-#include <m680x.h>
+#include <capstone/m680x.h>
 
 static int m680xmode(const char *str) {
-	if (!str) {
+	if (R_STR_ISEMPTY (str)) {
 		return CS_MODE_M680X_6800;
 	}
 	// replace this with the asm.features?
-	if (str && strstr (str, "6800")) {
+	if (strstr (str, "6800")) {
 		return CS_MODE_M680X_6800;
 	}
-	if (str && strstr (str, "6801")) {
+	if (strstr (str, "6801")) {
 		return CS_MODE_M680X_6801;
-	} else if (str && strstr (str, "6805")) {
+	} else if (strstr (str, "6805")) {
 		return CS_MODE_M680X_6805;
-	} else if (str && strstr (str, "6808")) {
+	} else if (strstr (str, "6808")) {
 		return CS_MODE_M680X_6808;
-	} else if (str && strstr (str, "6809")) {
+	} else if (strstr (str, "6809")) {
 		return CS_MODE_M680X_6809;
-	} else if (str && strstr (str, "6811")) {
+	} else if (strstr (str, "6811")) {
 		return CS_MODE_M680X_6811;
 	}
-//
-	if (str && strstr (str, "cpu12")) {
+	if (strstr (str, "cpu12")) {
 		return CS_MODE_M680X_CPU12;
 	}
-	if (str && strstr (str, "6301")) {
+	if (strstr (str, "6301")) {
 		return CS_MODE_M680X_6301;
 	}
-	if (str && strstr (str, "6309")) {
+	if (strstr (str, "6309")) {
 		return CS_MODE_M680X_6309;
 	}
-	if (str && strstr (str, "hcs08")) {
+	if (strstr (str, "hcs08")) {
 		return CS_MODE_M680X_HCS08;
 	}
 	return CS_MODE_M680X_6800;
@@ -66,13 +65,13 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 	static int obits = 32;
 	cs_insn* insn;
 
-	int mode = m680xmode (a->cpu);
+	int mode = m680xmode (a->config->cpu);
 
-	if (mode != omode || a->bits != obits) {
+	if (mode != omode || a->config->bits != obits) {
 		cs_close (&handle);
 		handle = 0;
 		omode = mode;
-		obits = a->bits;
+		obits = a->config->bits;
 	}
 	op->size = 4;
 	if (handle == 0) {

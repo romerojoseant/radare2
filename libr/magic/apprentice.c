@@ -98,11 +98,11 @@ static int check_format(RMagic *, struct r_magic *);
 static int get_op(char);
 
 static size_t maxmagic = 0;
-static size_t magicsize = sizeof (struct r_magic);
+static size_t magicsize = sizeof(struct r_magic);
 
 static const char usg_hdr[] = "cont\toffset\ttype\topcode\tmask\tvalue\tdesc";
 static const char mime_marker[] = "!:mime";
-static const size_t mime_marker_len = sizeof (mime_marker) - 1;
+static const size_t mime_marker_len = sizeof(mime_marker) - 1;
 
 static const struct type_tbl_s {
 	const char name[16];
@@ -505,7 +505,7 @@ static void load_b(RMagic *ms, int action, const char *data, int *errs, struct r
 	char line[BUFSIZ];
 	size_t lineno = 0;
 	/* read and parse this file */
-	for (ms->line = 1; (data = bgets (line, sizeof (line), data)) != NULL; ms->line++) {
+	for (ms->line = 1; (data = bgets (line, sizeof (line), data)); ms->line++) {
 		size_t len = strlen (line);
 		if (len == 0) { /* null line, garbage, etc */
 			continue;
@@ -553,7 +553,7 @@ static void load_1(RMagic *ms, int action, const char *file, int *errs, struct r
 		return;
 	}
 	/* read and parse this file */
-	for (ms->line = 1; fgets (line, sizeof (line), f) != NULL; ms->line++) {
+	for (ms->line = 1; fgets (line, sizeof (line), f); ms->line++) {
 		size_t len = strlen (line);
 		if (len == 0) { /* null line, garbage, etc */
 			continue;
@@ -657,7 +657,7 @@ static int apprentice_load(RMagic *ms, struct r_magic **magicp, ut32 *nmagicp, c
 				if (stat (subfn, &st) == 0 && S_ISREG (st.st_mode)) {
 					load_1 (ms, action, subfn, &errs, &marray, &marraycount);
 				}
-				//else perror (subfn);
+				//else r_sys_perror (subfn);
 			}
 			closedir (dir);
 		} else {
@@ -1627,7 +1627,7 @@ static int getvalue(RMagic *ms, struct r_magic *m, const char **p, int action) {
  * Copy the converted version to "p", returning its length in *slen.
  * Return updated scan pointer as function result.
  */
-static const char * getstr(RMagic *ms, const char *s, char *p, int plen, int *slen, int action) {
+static const char *getstr(RMagic *ms, const char *s, char *p, int plen, int *slen, int action) {
 	const char *origs = s;
 	char *origp = p;
 	char *pmax = p + plen - 1;
@@ -1983,7 +1983,7 @@ static char *mkdbname(const char *fn, int strip) {
 	int fnlen, extlen;
 	if (strip) {
 		const char *p;
-		if ((p = strrchr (fn, '/')) != NULL) {
+		if ((p = strrchr (fn, '/'))) {
 			fn = ++p;
 		}
 	}

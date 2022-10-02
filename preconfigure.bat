@@ -2,7 +2,7 @@
 @echo off
 :: Preconfigure script for Windows
 
-echo|set /p= === Finding Python...
+echo === Finding Python...
 python --version > NUL 2> NUL
 if %ERRORLEVEL% == 0 (
   echo OK
@@ -35,7 +35,9 @@ if %ERRORLEVEL% == 0 (
   if %ERRORLEVEL% == 0 (
     echo FOUND
   ) else (
-    pip install -UI pip meson ninja
+    pip install -UI pip ninja
+    REM meson==0.59.1 
+    pip install git+https://github.com/frida/meson.git@f7f25b19a8d71cebf8e2934733eb041eb6862eee
     preconfigure.bat
     exit /b 0
   )
@@ -55,24 +57,35 @@ cl --help > NUL 2> NUL
 if %ERRORLEVEL% == 0 (
   echo FOUND
 ) else (
-  if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community" (
-    echo "Found community edition"
-    call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
+C:\Program Files\Microsoft Visual Studio\2022\Enterprise\
+  if EXIST "C:\Program Files\Microsoft Visual Studio\2022\Enterprise" (
+    echo "Found 2022 Enterprise edition"
+    call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
   ) else (
-    if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" (
-      echo "Found Enterprise edition"
-      call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
+    if EXIST "C:\Program Files\Microsoft Visual Studio\2022\Community" (
+      echo "Found 2022 Community edition"
+      call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
     ) else (
-      if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat" (
-        echo "Found Professional edition"
-        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
+      if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community" (
+        echo "Found 2019 community edition"
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
       ) else (
-        if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
-          echo "Found BuildTools"
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
+        if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" (
+          echo "Found 2019 Enterprise edition"
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
         ) else (
-          echo "Not Found"
-          exit /b 1
+          if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat" (
+            echo "Found 2019 Professional edition"
+            call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
+          ) else (
+            if EXIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" (
+              echo "Found 2019 BuildTools"
+              call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" %VSARCH%
+            ) else (
+              echo "Not Found"
+              exit /b 1
+            )
+          )
         )
       )
     )
@@ -86,7 +99,18 @@ if EXIST "libr\asm\arch\arm\v35arm64\arch-arm64" (
   git clone https://github.com/radareorg/vector35-arch-arm64 arch-arm64
   cd arch-arm64
   git checkout radare2
-  git reset --hard 303d4145b9cc646435ec72d701dc387df837815d
+  git reset --hard 3c5eaba46dab72ecb7d5f5b865a13fdeee95b464
+  popd
+)
+
+if EXIST "libr\asm\arch\arm\v35arm64\arch-armv7" (
+  echo "v35armv7 ok"
+) else (
+  pushd "libr\asm\arch\arm\v35arm64"
+  git clone https://github.com/radareorg/vector35-arch-armv7 arch-armv7
+  cd arch-armv7
+  git checkout radare2
+  git reset --hard dde39f69ffea19fc37e681874b12cb4707bc4f30
   popd
 )
 

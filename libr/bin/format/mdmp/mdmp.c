@@ -369,9 +369,15 @@ static bool r_bin_mdmp_init_hdr(struct r_bin_mdmp_obj *obj) {
 	return true;
 }
 
-static void read_module(RBuffer *b, ut64 addr, struct minidump_module *module) {
+static struct minidump_module *read_module(RBuffer *b, ut64 addr) {
 	st64 o_addr = r_buf_seek (b, 0, R_BUF_CUR);
-	r_buf_seek (b, addr, R_BUF_SET);
+	if (r_buf_seek (b, addr, R_BUF_SET) == -1) {
+		return NULL;
+	}
+	struct minidump_module *module = R_NEW0 (struct minidump_module);
+	if (!module) {
+		return NULL;
+	}
 	module->base_of_image = r_buf_read_le64 (b);
 	module->size_of_image = r_buf_read_le32 (b);
 	module->check_sum = r_buf_read_le32 (b);
@@ -397,6 +403,7 @@ static void read_module(RBuffer *b, ut64 addr, struct minidump_module *module) {
 	module->reserved_0 = r_buf_read_le64 (b);
 	module->reserved_1 = r_buf_read_le64 (b);
 	r_buf_seek (b, o_addr, R_BUF_SET);
+	return module;
 }
 
 static void read_memory64_list(RBuffer *b, ut64 addr, struct minidump_memory64_list *memory64_list) {
@@ -416,6 +423,7 @@ static void read_desc(RBuffer *b, ut64 addr, struct minidump_memory_descriptor64
 }
 
 static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct minidump_directory *entry) {
+	r_strf_buffer (128);
 	struct minidump_handle_operation_list handle_operation_list;
 	struct minidump_memory_list memory_list;
 	struct minidump_memory64_list memory64_list;
@@ -450,7 +458,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 		sdb_num_set (obj->kv, "mdmp_thread_list.offset",
 			entry->location.rva, 0);
 		sdb_set (obj->kv, "mdmp_thread_list.format",
-			sdb_fmt ("d[%d]? "
+			r_strf ("d[%d]? "
 				"NumberOfThreads (mdmp_thread)Threads",
 				thread_list.number_of_threads),
 			0);
@@ -470,18 +478,17 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 		sdb_num_set (obj->kv, "mdmp_module_list.offset",
 			entry->location.rva, 0);
 		sdb_set (obj->kv, "mdmp_module_list.format",
-			sdb_fmt ("d[%d]? "
+			r_strf ("d[%d]? "
 				"NumberOfModule (mdmp_module)Modules",
 				module_list.number_of_modules),
 			0);
 
 		offset = entry->location.rva + sizeof (module_list);
-		for (i = 0; i < module_list.number_of_modules; i++) {
-			struct minidump_module *module = R_NEW (struct minidump_module);
+		for (i = 0; i < module_list.number_of_modules && offset < obj->size; i++) {
+			struct minidump_module *module = read_module (obj->b, offset);
 			if (!module) {
-				break;
+				break;	
 			}
-			read_module (obj->b, offset, module);
 			r_list_append (obj->streams.modules, module);
 			offset += sizeof (*module);
 		}
@@ -495,14 +502,14 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 		sdb_num_set (obj->kv, "mdmp_memory_list.offset",
 			entry->location.rva, 0);
 		sdb_set (obj->kv, "mdmp_memory_list.format",
-			sdb_fmt ("d[%d]? "
+			r_strf ("d[%d]? "
 				"NumberOfMemoryRanges "
 				"(mdmp_memory_descriptor)MemoryRanges ",
 				memory_list.number_of_memory_ranges),
 			0);
 
 		offset = entry->location.rva + sizeof (memory_list);
-		for (i = 0; i < memory_list.number_of_memory_ranges; i++) {
+		for (i = 0; i < memory_list.number_of_memory_ranges && offset < obj->size; i++) {
 			struct minidump_memory_descriptor *desc = R_NEW (struct minidump_memory_descriptor);
 			if (!desc) {
 				break;
@@ -579,13 +586,13 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 		sdb_num_set (obj->kv, "mdmp_thread_ex_list.offset",
 			entry->location.rva, 0);
 		sdb_set (obj->kv, "mdmp_thread_ex_list.format",
-			sdb_fmt ("d[%d]? NumberOfThreads "
+			r_strf ("d[%d]? NumberOfThreads "
 				"(mdmp_thread_ex)Threads",
 				thread_ex_list.number_of_threads),
 			0);
 
 		offset = entry->location.rva + sizeof (thread_ex_list);
-		for (i = 0; i < thread_ex_list.number_of_threads; i++) {
+		for (i = 0; i < thread_ex_list.number_of_threads && offset < obj->size; i++) {
 			struct minidump_thread_ex *thread = R_NEW (struct minidump_thread_ex);
 			if (!thread) {
 				break;
@@ -604,7 +611,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 		sdb_num_set (obj->kv, "mdmp_memory64_list.offset",
 			entry->location.rva, 0);
 		sdb_set (obj->kv, "mdmp_memory64_list.format",
-			sdb_fmt ("qq[%"PFMT64d"]? NumberOfMemoryRanges "
+			r_strf ("qq[%"PFMT64d"]? NumberOfMemoryRanges "
 				"BaseRva "
 				"(mdmp_memory_descriptor64)MemoryRanges",
 				memory64_list.number_of_memory_ranges),
@@ -612,7 +619,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 
 		obj->streams.memories64.base_rva = memory64_list.base_rva;
 		offset = entry->location.rva + sizeof (memory64_list);
-		for (i = 0; i < memory64_list.number_of_memory_ranges; i++) {
+		for (i = 0; i < memory64_list.number_of_memory_ranges && offset < obj->size; i++) {
 			struct minidump_memory_descriptor64 *desc = R_NEW (struct minidump_memory_descriptor64);
 			if (!desc) {
 				break;
@@ -707,7 +714,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 			"SizeOfHeader SizeOfEntry NumberOfEntries", 0);
 
 		offset = entry->location.rva + sizeof (unloaded_module_list);
-		for (i = 0; i < unloaded_module_list.number_of_entries; i++) {
+		for (i = 0; i < unloaded_module_list.number_of_entries && offset < obj->size; i++) {
 			struct minidump_unloaded_module *module = R_NEW (struct minidump_unloaded_module);
 			if (!module) {
 				break;
@@ -756,13 +763,13 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 		sdb_num_set (obj->kv, "mdmp_memory_info_list.offset",
 			entry->location.rva, 0);
 		sdb_set (obj->kv, "mdmp_memory_info_list.format",
-			sdb_fmt ("ddq[%"PFMT64d"]? SizeOfHeader SizeOfEntry "
+			r_strf ("ddq[%"PFMT64d"]? SizeOfHeader SizeOfEntry "
 				"NumberOfEntries (mdmp_memory_info)MemoryInfo",
 				memory_info_list.number_of_entries),
 			0);
 
 		offset = entry->location.rva + sizeof (memory_info_list);
-		for (i = 0; i < memory_info_list.number_of_entries; i++) {
+		for (i = 0; i < memory_info_list.number_of_entries && offset < obj->size; i++) {
 			struct minidump_memory_info *info = R_NEW (struct minidump_memory_info);
 			if (!info) {
 				break;
@@ -792,7 +799,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 			"SizeOfHeader SizeOfEntry NumberOfEntries", 0);
 
 		offset = entry->location.rva + sizeof (thread_info_list);
-		for (i = 0; i < thread_info_list.number_of_entries; i++) {
+		for (i = 0; i < thread_info_list.number_of_entries && offset < obj->size; i++) {
 			struct minidump_thread_info *info = R_NEW (struct minidump_thread_info);
 			if (!info) {
 				break;
@@ -818,7 +825,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 			"SizeOfHeader SizeOfEntry NumberOfEntries Reserved", 0);
 
 		offset = entry->location.rva + sizeof (handle_operation_list);
-		for (i = 0; i < handle_operation_list.number_of_entries; i++) {
+		for (i = 0; i < handle_operation_list.number_of_entries && offset < obj->size; i++) {
 			struct avrf_handle_operation *op = R_NEW (struct avrf_handle_operation);
 			if (!op) {
 				break;
@@ -848,7 +855,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 			"TokenListSize TokenListEntries ListHeaderSize ElementHeaderSize", 0);
 
 		offset = entry->location.rva + sizeof (token_info_list);
-		for (i = 0; i < token_info_list.number_of_entries; i++) {
+		for (i = 0; i < token_info_list.number_of_entries && offset < obj->size; i++) {
 			struct minidump_token_info *info = R_NEW (struct minidump_token_info);
 			if (!info) {
 				break;
@@ -877,7 +884,7 @@ static bool r_bin_mdmp_init_directory_entry(struct r_bin_mdmp_obj *obj, struct m
 	return true;
 }
 
-static bool read_entry (RBuffer *b, ut64 addr, struct minidump_directory *entry) {
+static bool read_entry(RBuffer *b, ut64 addr, struct minidump_directory *entry) {
 	st64 o_addr = r_buf_seek (b, 0, R_BUF_CUR);
 	if (r_buf_seek (b, addr, R_BUF_SET) < 0) {
 		return false;
@@ -904,7 +911,7 @@ static bool r_bin_mdmp_init_directory(struct r_bin_mdmp_obj *obj) {
 	size_t max_entries = R_MIN (obj->hdr->number_of_streams, bytes_left / sizeof (struct minidump_directory));
 	if (max_entries < obj->hdr->number_of_streams) {
 		eprintf ("[ERROR] Number of streams = %u is greater than is supportable by bin size\n",
-		         obj->hdr->number_of_streams);
+				obj->hdr->number_of_streams);
 	}
 	/* Parse each entry in the directory */
 	for (i = 0; i < max_entries; i++) {
@@ -981,7 +988,7 @@ static bool r_bin_mdmp_init_pe_bins(struct r_bin_mdmp_obj *obj) {
 	struct minidump_module *module;
 	struct Pe32_r_bin_mdmp_pe_bin *pe32_bin, *pe32_dup;
 	struct Pe64_r_bin_mdmp_pe_bin *pe64_bin, *pe64_dup;
-	RBuffer *buf;
+	RBuffer *buf = NULL;
 	RListIter *it, *it_dup;
 
 	r_list_foreach (obj->streams.modules, it, module) {
@@ -995,6 +1002,7 @@ static bool r_bin_mdmp_init_pe_bins(struct r_bin_mdmp_obj *obj) {
 			continue;
 		}
 		int r = r_buf_read_at (obj->b, paddr, b, module->size_of_image);
+		r_buf_free (buf);
 		buf = r_buf_new_with_bytes (b, r);
 		dup = false;
 		if (check_pe32_buf (buf, module->size_of_image)) {
@@ -1014,7 +1022,10 @@ static bool r_bin_mdmp_init_pe_bins(struct r_bin_mdmp_obj *obj) {
 			pe32_bin->vaddr = module->base_of_image;
 			pe32_bin->paddr = paddr;
 			pe32_bin->bin = Pe32_r_bin_pe_new_buf (buf, 0);
-
+			if (!pe32_bin->bin) {
+				free (pe32_bin);
+				continue;
+			}
 			r_list_append (obj->pe32_bins, pe32_bin);
 		} else if (check_pe64_buf (buf, module->size_of_image)) {
 			r_list_foreach(obj->pe64_bins, it_dup, pe64_dup) {
@@ -1033,11 +1044,13 @@ static bool r_bin_mdmp_init_pe_bins(struct r_bin_mdmp_obj *obj) {
 			pe64_bin->vaddr = module->base_of_image;
 			pe64_bin->paddr = paddr;
 			pe64_bin->bin = Pe64_r_bin_pe_new_buf (buf, 0);
+			buf = NULL;
 
 			r_list_append (obj->pe64_bins, pe64_bin);
 		}
-		r_buf_free (buf);
 	}
+	r_buf_free (buf);
+	buf = NULL;
 	return true;
 }
 

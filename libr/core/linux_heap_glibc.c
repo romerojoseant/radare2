@@ -109,18 +109,22 @@ static bool GH(is_tcache)(RCore *core) {
 		RListIter *iter;
 		r_debug_map_sync (core->dbg);
 		r_list_foreach (core->dbg->maps, iter, map) {
-			// In case the binary is named *libc-*
+			// In case the binary is named *libc-* or *libc.*
 			if (strncmp (map->name, core->bin->file, strlen(map->name)) != 0) {
 				fp = strstr (map->name, "libc-");
+				if (fp) {
+					break;
+				}
+				fp = strstr (map->name, "libc.");
 				if (fp) {
 					break;
 				}
 			}
 		}
 	} else {
-		int tcv = r_config_get_i (core->config, "dbg.glibc.tcache");
-		eprintf ("dbg.glibc.tcache = %i\n", tcv);
-		return tcv != 0;
+		bool tcv = r_config_get_b (core->config, "dbg.glibc.tcache");
+		// eprintf ("dbg.glibc.tcache = %i\n", tcv);
+		return tcv;
 	}
 	if (fp) {
 		v = r_num_get_float (NULL, fp + 5);
@@ -221,9 +225,14 @@ static void GH(get_brks)(RCore *core, GHT *brk_start, GHT *brk_end) {
 			}
 		}
 	} else {
-		void **it;
-		r_pvector_foreach (&core->io->maps, it) {
-			RIOMap *map = *it;
+		RIOBank *bank = r_io_bank_get (core->io, core->io->bank);
+		if (!bank) {
+			return;
+		}
+		RIOMapRef *mapref;
+		RListIter *iter;
+		r_list_foreach (bank->maprefs, iter, mapref) {
+			RIOMap *map = r_io_map_get (core->io, mapref->id);
 			if (map->name) {
 				if (strstr (map->name, "[heap]")) {
 					*brk_start = r_io_map_begin (map);
@@ -406,20 +415,27 @@ static bool GH(r_resolve_main_arena)(RCore *core, GHT *m_arena) {
 		r_debug_map_sync (core->dbg);
 		r_list_foreach (core->dbg->maps, iter, map) {
 			/* Try to find the main arena address using the glibc's symbols. */
-			if (strstr (map->name, "/libc-") && first_libc && main_arena_sym == GHT_MAX) {
+			if ((strstr (map->name, "/libc-") || strstr (map->name, "/libc."))
+					&& first_libc && main_arena_sym == GHT_MAX) {
 				first_libc = false;
 				main_arena_sym = GH (get_main_arena_with_symbol) (core, map);
 			}
-			if (strstr (map->name, "/libc-") && map->perm == R_PERM_RW) {
+			if ((strstr (map->name, "/libc-") || strstr (map->name, "/libc."))
+					&& map->perm == R_PERM_RW) {
 				libc_addr_sta = map->addr;
 				libc_addr_end = map->addr_end;
 				break;
 			}
 		}
 	} else {
-		void **it;
-		r_pvector_foreach (&core->io->maps, it) {
-			RIOMap *map = *it;
+		RIOBank *bank = r_io_bank_get (core->io, core->io->bank);
+		if (!bank) {
+			return false;
+		}
+		RIOMapRef *mapref;
+		RListIter *iter;
+		r_list_foreach (bank->maprefs, iter, mapref) {
+			RIOMap *map = r_io_map_get (core->io, mapref->id);
 			if (map->name && strstr (map->name, "arena")) {
 				libc_addr_sta = r_io_map_begin (map);
 				libc_addr_end = r_io_map_end (map);
@@ -742,7 +758,7 @@ static void GH(print_heap_bin)(RCore *core, GHT m_arena, MallocState *main_arena
 		break;
 	case ' ': // dmhb [bin_num]
 		j--; // for spaces after input
-		/* fallthu */
+		// fallthrough
 	case 'g': // dmhbg [bin_num]
 		num_bin = r_num_get (NULL, input + j) - 1;
 		if (num_bin > NBINS - 2) {
@@ -774,7 +790,7 @@ static int GH(print_single_linked_list_bin)(RCore *core, MallocState *main_arena
 
 	GHT bin = main_arena->GH(fastbinsY)[bin_num];
 	if (!bin) {
-        free (cnk);
+		free (cnk);
 		return -1;
 	}
 
@@ -1114,7 +1130,7 @@ static void GH(print_heap_segment)(RCore *core, MallocState *main_arena,
 		return;
 	}
 
-	RANode *top = R_EMPTY, *chunk_node = R_EMPTY, *prev_node = R_EMPTY;
+	RANode *top = {0}, *chunk_node = {0}, *prev_node = {0};
 	char *top_title, *top_data, *node_title, *node_data;
 	bool first_node = true;
 
@@ -1122,7 +1138,7 @@ static void GH(print_heap_segment)(RCore *core, MallocState *main_arena,
 	top_title = r_str_new ("");
 
 	if (!r_io_read_at (core->io, next_chunk, (ut8 *)cnk, sizeof (GH(RHeapChunk)))) {
-		eprintf ("Cannot read");
+		eprintf ("Cannot read\n");
 		free (cnk);
 		free (cnk_next);
 		r_cons_canvas_free (can);
@@ -1178,9 +1194,9 @@ static void GH(print_heap_segment)(RCore *core, MallocState *main_arena,
 				break;
 			case '*':
 				r_cons_printf ("fs heap.corrupted\n");
-				char *name = r_str_newf ("chunk.corrupted.%06" PFMT64x , ((prev_chunk >> 4) & 0xffffULL));
-				r_cons_printf ("f %s %d 0x%"PFMT64x"\n", name, (int)cnk->size, (ut64)prev_chunk);
-				free (name);
+				ut64 chunkflag = (ut64)((prev_chunk >> 4) & 0xffffULL);
+				r_cons_printf ("f chunk.corrupted.%06"PFMT64x" %d 0x%"PFMT64x"\n", 
+					chunkflag, (int)cnk->size, (ut64)prev_chunk);
 				break;
 			case 'g':
 				node_title = r_str_newf ("  Malloc chunk @ 0x%"PFMT64x" ", (ut64)prev_chunk);
@@ -1322,9 +1338,8 @@ static void GH(print_heap_segment)(RCore *core, MallocState *main_arena,
 			break;
 		case '*':
 			r_cons_printf ("fs heap.%s\n", status);
-			char *name = r_str_newf ("chunk.%06" PFMT64x, ((prev_chunk_addr>>4) & 0xffffULL));
-			r_cons_printf ("f %s %d 0x%"PFMT64x"\n", name, (int)prev_chunk_size, (ut64)prev_chunk_addr);
-			free (name);
+			ut64 chunkat = (prev_chunk_addr>>4) & 0xffff;
+			r_cons_printf ("f chunk.%06"PFMT64x" %d 0x%"PFMT64x"\n", chunkat, (int)prev_chunk_size, (ut64)prev_chunk_addr);
 			break;
 		case 'g':
 			node_title = r_str_newf ("  Malloc chunk @ 0x%"PFMT64x" ", (ut64)prev_chunk_addr);
@@ -1504,7 +1519,7 @@ static int GH(cmd_dbg_map_heap_glibc)(RCore *core, const char *input) {
 		return false;
 	}
 
-	r_config_set_i (core->config, "dbg.glibc.tcache", GH(is_tcache) (core));
+	r_config_set_b (core->config, "dbg.glibc.tcache", GH(is_tcache) (core));
 
 	int format = 'c';
 	bool get_state = false;

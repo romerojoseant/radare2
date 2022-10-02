@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2020-2021 - pancake, thestr4ng3r */
+/* radare - LGPL - Copyright 2020-2022 - pancake, thestr4ng3r */
 
 #include "r2r.h"
 
@@ -6,7 +6,8 @@
 #define RADARE2_CMD_DEFAULT    "radare2"
 #define RASM2_CMD_DEFAULT      "rasm2"
 #define JSON_TEST_FILE_DEFAULT "bins/elf/crackme0x00b"
-#define TIMEOUT_DEFAULT        960
+// 30 seconds is the maximum time a test can run
+#define TIMEOUT_DEFAULT        (30*60)
 
 #define STRV(x) #x
 #define STR(x) STRV(x)
@@ -209,7 +210,7 @@ int main(int argc, char **argv) {
 		for (i = 0; i < R_ARRAY_SIZE (streams); i++) {
 			GetConsoleMode (streams[i], &mode);
 			SetConsoleMode (streams[i],
-			                mode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+					mode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 		}
 	}
 #endif
@@ -333,8 +334,10 @@ int main(int argc, char **argv) {
 	}
 	atexit (r2r_subprocess_fini);
 
+	r_sys_setenv ("ASAN_OPTIONS", "detect_leaks=false");
 	r_sys_setenv ("RABIN2_TRYLIB", "0");
 	r_sys_setenv ("R2_DEBUG_ASSERT", "1");
+	r_sys_setenv ("R2_DEBUG_EPRINT", "0");
 	r_sys_setenv ("TZ", "UTC");
 	ut64 time_start = r_time_now_mono ();
 	R2RState state = {{0}};
@@ -663,7 +666,7 @@ static void print_diff(const char *actual, const char *expected, bool diffchar, 
 		d->diff_cmd = "git diff --no-index --word-diff=porcelain --word-diff-regex=.";
 	}
 	char *uni = r_diff_buffers_to_string (d, (const ut8 *)expected, (int)strlen (expected),
-	                                      (const ut8 *)output, (int)strlen (output));
+			(const ut8 *)output, (int)strlen (output));
 	r_diff_free (d);
 
 	RList *lines = r_str_split_duplist (uni, "\n", false);

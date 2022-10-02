@@ -3,7 +3,7 @@ BINS=$(patsubst %.c,$(BINDIR)/%,$(wildcard *.c))
 LDFLAGS+=$(shell pkg-config --libs r_core)
 CFLAGS+=-I../../libr/include
 CFLAGS+=-I../../shlr/sdb/src
-# $(shell pkg-config --cflags r_core) -g
+CFLAGS+=-g
 ifeq ($(ASAN),1)
 	ASAN_LD_PRELOAD=LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.5
 else
@@ -11,6 +11,9 @@ else
 endif
 
 all: $(BINS)
+
+asan:
+	$(MAKE) ASAN=1
 
 $(BINDIR)/%: %.c
 	mkdir -p "$(BINDIR)"

@@ -20,7 +20,6 @@
 
 R_LIB_VERSION(r_socket);
 
-
 #if NETWORK_DISABLED
 /* no network */
 R_API RSocket *r_socket_new(bool is_ssl) {
@@ -95,6 +94,9 @@ R_API ut8* r_socket_slurp(RSocket *s, int *len) {
 #else
 
 R_API bool r_socket_is_connected(RSocket *s) {
+	if (!r_sandbox_check (R_SANDBOX_GRAIN_SOCKET)) {
+		return false;
+	}
 #if __WINDOWS__
 	char buf[2];
 	r_socket_block_time (s, false, 0, 0);
@@ -110,7 +112,7 @@ R_API bool r_socket_is_connected(RSocket *s) {
 	socklen_t len = sizeof (error);
 	int ret = getsockopt (s->fd, SOL_SOCKET, SO_ERROR, &error, &len);
 	if (ret != 0) {
-		perror ("getsockopt");
+		r_sys_perror ("getsockopt");
 		return false;
 	}
 	return (error == 0);
@@ -200,6 +202,9 @@ R_API RSocket *r_socket_new(bool is_ssl) {
 }
 
 R_API bool r_socket_spawn(RSocket *s, const char *cmd, unsigned int timeout) {
+	if (!r_sandbox_check (R_SANDBOX_GRAIN_EXEC)) {
+		return false;
+	}
 	// XXX TODO: dont use sockets, we can achieve the same with pipes
 	const int port = 2000 + r_num_rand (2000);
 	int childPid = r_sys_fork ();
@@ -255,12 +260,12 @@ R_API bool r_socket_connect(RSocket *s, const char *host, const char *port, int 
 	WSADATA wsadata;
 
 	if (WSAStartup (MAKEWORD (1, 1), &wsadata) == SOCKET_ERROR) {
-		eprintf ("Error creating socket.");
+		eprintf ("Error creating socket.\n");
 		return false;
 	}
 #endif
 	int ret;
-	struct addrinfo hints = { 0 };
+	struct addrinfo hints = {0};
 	struct addrinfo *res, *rp;
 	if (proto == R_SOCKET_PROTO_NONE) {
 		proto = R_SOCKET_PROTO_DEFAULT;
@@ -311,7 +316,8 @@ R_API bool r_socket_connect(RSocket *s, const char *host, const char *port, int 
 			return false;
 		}
 
-		struct ifreq ifr = {0};
+		struct ifreq ifr;
+		memset (&ifr, 0, sizeof (ifr));
 		r_str_ncpy (ifr.ifr_name, host, sizeof (ifr.ifr_name));
 		if (ioctl (fd, SIOCGIFINDEX, &ifr) == -1) {
 			r_sys_perror ("ioctl");
@@ -351,7 +357,7 @@ R_API bool r_socket_connect(RSocket *s, const char *host, const char *port, int 
 
 			s->fd = socket (rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 			if (s->fd == -1) {
-				perror ("socket");
+				r_sys_perror ("socket");
 				continue;
 			}
 
@@ -359,7 +365,7 @@ R_API bool r_socket_connect(RSocket *s, const char *host, const char *port, int 
 			case R_SOCKET_PROTO_TCP:
 				ret = setsockopt (s->fd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof (flag));
 				if (ret < 0) {
-					perror ("setsockopt");
+					r_sys_perror ("setsockopt");
 					close (s->fd);
 					s->fd = -1;
 					continue;
@@ -409,7 +415,7 @@ R_API bool r_socket_connect(RSocket *s, const char *host, const char *port, int 
 						goto success;
 					}
 				} else {
-					perror ("connect");
+					r_sys_perror ("connect");
 				}
 			}
 			r_socket_close (s);
@@ -531,7 +537,7 @@ R_API int r_socket_port_by_name(const char *name) {
 R_API bool r_socket_listen(RSocket *s, const char *port, const char *certfile) {
 	int optval = 1;
 	int ret;
-	struct linger linger = { 0 };
+	struct linger linger = {0};
 
 	if (s->proto == R_SOCKET_PROTO_UNIX) {
 #if __UNIX__
@@ -539,14 +545,13 @@ R_API bool r_socket_listen(RSocket *s, const char *port, const char *certfile) {
 #endif
 		return false;
 	}
-
-	if (r_sandbox_enable (0)) {
+	if (!r_sandbox_check (R_SANDBOX_GRAIN_SOCKET)) {
 		return false;
 	}
 #if __WINDOWS__
 	WSADATA wsadata;
 	if (WSAStartup (MAKEWORD (1, 1), &wsadata) == SOCKET_ERROR) {
-		eprintf ("Error creating socket.");
+		eprintf ("Error creating socket.\n");
 		return false;
 	}
 #endif
@@ -697,7 +702,7 @@ R_API RSocket *r_socket_accept_timeout(RSocket *s, unsigned int timeout) {
 
 	int r = select (s->fd + 1, &read_fds, NULL, &except_fds, &t);
 	if(r < 0) {
-		perror ("select");
+		r_sys_perror ("select");
 	} else if (r > 0 && FD_ISSET (s->fd, &read_fds)) {
 		return r_socket_accept (s);
 	}
@@ -774,7 +779,7 @@ R_API char *r_socket_to_string(RSocket *s) {
 				a[0], a[1], a[2], a[3], ntohs (sain->sin_port));
 		}
 	} else {
-		eprintf ("getperrname: failed\n"); //r_sys_perror ("getpeername");
+		r_sys_perror ("getpeername");
 	}
 	return str;
 #else

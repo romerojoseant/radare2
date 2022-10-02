@@ -148,16 +148,19 @@ static bool filter(RParse *p, ut64 addr, RFlag *f, RAnalHint *hint, char *data, 
 	RAnalFunction *fcn;
 	RFlagItem *flag;
 	ut64 off;
+	const int bits = p->analb.anal->config->bits;
+	const int seggrn = p->analb.anal->config->seggrn;
 	bool x86 = false;
 	bool arm = false;
-	if (p && p->cur && p->cur->name) {
-		if (strstr (p->cur->name, "x86")) {
+	const char *pname = (p && p->cur && p->cur->name) ? p->cur->name: NULL;
+	if (pname) {
+		if (strstr (pname, "x86")) {
 			x86 = true;
 		}
-		if (strstr (p->cur->name, "m68k")) {
-			x86 = true;
+		if (strstr (pname, "m68k")) {
+			x86 = true; /// w t f? trick or wat
 		}
-		if (strstr (p->cur->name, "arm")) {
+		if (strstr (pname, "arm")) {
 			arm = true;
 		}
 	}
@@ -189,7 +192,16 @@ static bool filter(RParse *p, ut64 addr, RFlag *f, RAnalHint *hint, char *data, 
 				;
 			}
 		}
-		off = r_num_math (NULL, ptr);
+		char* colon = strstr (ptr, ":");
+		if (x86 && bits == 16 && colon) {
+			*colon = '\0';
+			ut64 s = r_num_get (NULL, ptr);
+			ut64 o = r_num_get (NULL, colon + 1);
+			off = (s << seggrn) + o;
+			*colon = ':';
+		} else {
+			off = r_num_get (NULL, ptr);
+		}
 		if (off >= p->minval) {
 			fcn = p->analb.get_fcn_in (p->analb.anal, off, 0);
 			if (fcn && fcn->addr == off) {
@@ -214,7 +226,7 @@ static bool filter(RParse *p, ut64 addr, RFlag *f, RAnalHint *hint, char *data, 
 			if (f) {
 				RFlagItem *flag2;
 				bool lea = x86 && r_str_startswith (data, "lea")
-				         && (data[3] == ' ' || data[3] == 0x1b);
+						&& (data[3] == ' ' || data[3] == 0x1b);
 				bool remove_brackets = false;
 				flag = p->flag_get (f, off);
 				if ((!flag || arm) && p->subrel_addr) {
@@ -233,7 +245,7 @@ static bool filter(RParse *p, ut64 addr, RFlag *f, RAnalHint *hint, char *data, 
 						if (p->flagspace == flag->space) {
 							continue;
 						}
-					} else if (p->flagspace && (p->flagspace != flag->space)) {
+					} else if (p->flagspace && flag && (p->flagspace != flag->space)) {
 						ptr = ptr2;
 						continue;
 					}
@@ -400,6 +412,20 @@ static bool filter(RParse *p, ut64 addr, RFlag *f, RAnalHint *hint, char *data, 
 					continue;
 				}
 				break;
+			}
+			if (bits == 16 && x86 && *pnum == ':') {
+				pnum++;
+				is_hex = false;
+				if (!strncmp (pnum, "0x", 2)) {
+					is_hex = true;
+					pnum += 2;
+				}
+				for (; *pnum; pnum++) {
+					if ((is_hex && IS_HEXCHAR (*pnum)) || IS_DIGIT (*pnum)) {
+						continue;
+					}
+					break;
+				}
 			}
 			*pnum = 0;
 			switch (immbase) {

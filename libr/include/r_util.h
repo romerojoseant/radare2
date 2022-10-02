@@ -1,10 +1,9 @@
-/* radare - LGPL - Copyright 2008-2021 - pancake */
+/* radare - LGPL - Copyright 2008-2022 - pancake */
 
 #ifndef R2_UTIL_H
 #define R2_UTIL_H
 
 #include <r_types.h>
-#include <r_diff.h>
 #include <r_regex.h>
 #include <r_getopt.h>
 #include <r_list.h> // radare linked list
@@ -52,6 +51,7 @@ int gettimeofday (struct timeval* p, void* tz);
 #include "r_util/r_graph.h"
 #include "r_util/r_panels.h"
 #include "r_util/r_pool.h"
+#include "r_util/r_diff.h"
 #include "r_util/r_punycode.h"
 #include "r_util/r_queue.h"
 #include "r_util/r_range.h"
@@ -73,11 +73,13 @@ int gettimeofday (struct timeval* p, void* tz);
 #include "r_util/r_idpool.h"
 #include "r_util/r_asn1.h"
 #include "r_util/pj.h"
+#include "r_util/bplist.h"
 #include "r_util/r_x509.h"
 #include "r_util/r_pkcs7.h"
 #include "r_util/r_protobuf.h"
 #include "r_util/r_big.h"
 #include "r_util/r_w32.h"
+#include "r_util/r_token.h"
 #include "r_util/r_axml.h"
 // requires io, core, ... #include "r_util/r_print.h"
 
@@ -85,10 +87,11 @@ int gettimeofday (struct timeval* p, void* tz);
 extern "C" {
 #endif
 
-R_LIB_VERSION_HEADER(r_util);
-
+R_LIB_VERSION_HEADER (r_util);
 #ifdef __cplusplus
 }
 #endif
-
+#define R_DIRTY(x) (x)->is_dirty = true
+#define R_IS_DIRTY(x) (x)->is_dirty
+#define R_DIRTY_VAR bool is_dirty
 #endif

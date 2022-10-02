@@ -10,7 +10,8 @@
 
 #define IFDBG_BIN_JAVA if (0)
 
-static Sdb *DB = NULL;
+static R_TH_LOCAL Sdb *DB = NULL;
+
 static void add_bin_obj_to_sdb(RBinJavaObj *bin);
 static int add_sdb_bin_obj(const char *key, RBinJavaObj *bin_obj);
 
@@ -74,7 +75,7 @@ static Sdb *get_sdb(RBinFile *bf) {
 	return NULL;
 }
 
-static bool load_buffer(RBinFile * bf, void **bin_obj, RBuffer *buf, ut64 loadaddr, Sdb *sdb) {
+static bool load_buffer(RBinFile *bf, void **bin_obj, RBuffer *buf, ut64 loadaddr, Sdb *sdb) {
 	struct r_bin_java_obj_t *tmp_bin_obj = NULL;
 	RBuffer *tbuf = r_buf_ref (buf);
 	tmp_bin_obj = r_bin_java_new_buf (tbuf, loadaddr, sdb);

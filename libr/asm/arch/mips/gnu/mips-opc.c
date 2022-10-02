@@ -1,5 +1,5 @@
 /*
-  Based on commits 250d07de5cf6efc81ed934c25292beb63c7e3129 from master branch 
+  Based on commits 250d07de5cf6efc81ed934c25292beb63c7e3129 from master branch
   of binutils-gdb.
 */
 /* mips-opc.c -- MIPS opcode list.
@@ -35,7 +35,7 @@
 /* The 4-bit XYZW mask used in some VU0 instructions.  */
 const struct mips_operand mips_vu0_channel_mask = { OP_VU0_SUFFIX, 4, 21 };
 
-static unsigned char reg_0_map[] = { 0 };
+static unsigned char reg_0_map[] = {0};
 
 /* Return the mips_operand structure for the operand at the beginning of P.  */
 

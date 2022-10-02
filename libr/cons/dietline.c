@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2007-2021 - pancake */
+/* radare - LGPL - Copyright 2007-2022 - pancake */
 /* dietline is a lightweight and portable library similar to GNU readline */
 
 #include <r_cons.h>
@@ -20,16 +20,15 @@ static int r_line_readchar_win(ut8 *s, int slen);
 #define USE_UTF8 1
 #endif
 
-static char *r_line_nullstr = "";
 static const char word_break_characters[] = "\t\n ~`!@#$%^&*()-_=+[]{}\\|;:\"'<>,./";
 
+// TODO: remove global variables
+static R_TH_LOCAL bool enable_yank_pop = false;
 
 typedef enum {
 	MINOR_BREAK,
 	MAJOR_BREAK
 } BreakMode;
-
-bool enable_yank_pop = false;
 
 static inline bool is_word_break_char(char ch, bool mode) {
 	int i;
@@ -246,7 +245,7 @@ static int r_line_readchar_utf8(ut8 *s, int slen) {
 		return -1;
 	}
 	for (i = 1; i < len; i++) {
-		int ch = r_cons_readchar ();
+		ch = r_cons_readchar ();
 		if (ch != -1) {
 			s[i] = ch;
 		}
@@ -262,7 +261,7 @@ static int r_line_readchar_utf8(ut8 *s, int slen) {
 #if __WINDOWS__
 static int r_line_readchar_win(ut8 *s, int slen) { // this function handle the input in console mode
 	r_sys_backtrace();
-	INPUT_RECORD irInBuf = { { 0 } };
+	INPUT_RECORD irInBuf = { {0} };
 	BOOL ret;
 	DWORD mode, out;
 	char buf[5] = {0};
@@ -297,7 +296,9 @@ do_it_again:
 	if (irInBuf.EventType == KEY_EVENT) {
 		if (irInBuf.Event.KeyEvent.bKeyDown) {
 			if (irInBuf.Event.KeyEvent.uChar.UnicodeChar) {
-				char *tmp = r_sys_conv_win_to_utf8_l ((PTCHAR)&irInBuf.Event.KeyEvent.uChar, 1);
+				ut8 chbuf[4] = {0};
+				memcpy (chbuf, &(irInBuf.Event.KeyEvent.uChar), 2);
+				char *tmp = r_sys_conv_win_to_utf8_l ((PTCHAR)&chbuf, 1);
 				if (tmp) {
 					r_str_ncpy (buf, tmp, sizeof (buf));
 					free (tmp);
@@ -524,7 +525,7 @@ R_API int r_line_hist_load(const char *file) {
 		free (path);
 		return false;
 	}
-	while (fgets (buf, sizeof (buf), fd) != NULL) {
+	while (fgets (buf, sizeof (buf), fd)) {
 		r_str_trim_tail (buf);
 		r_line_hist_add (buf);
 	}
@@ -543,7 +544,9 @@ R_API bool r_line_hist_save(const char *file) {
 		if (p) {
 			*p = 0;
 			if (!r_sys_mkdirp (path)) {
-				eprintf ("Could not save history into %s\n", path);
+				if (r_sandbox_check (R_SANDBOX_GRAIN_FILES)) {
+					R_LOG_ERROR ("Could not save history into %s", path);
+				}
 				goto end;
 			}
 			*p = R_SYS_DIR[0];
@@ -777,11 +780,11 @@ R_API void r_line_autocomplete(void) {
 	if (argc == 1) {
 		const char *end_word = r_sub_str_rchr (I.buffer.data,
 			I.buffer.index, strlen (I.buffer.data), ' ');
-		const char *t = end_word != NULL?
+		const char *t = end_word?
 				end_word: I.buffer.data + I.buffer.index;
 		int largv0 = strlen (r_str_get (argv[0]));
 		size_t len_t = strlen (t);
-		p[largv0]='\0';
+		p[largv0] = '\0';
 
 		if ((p - I.buffer.data) + largv0 + 1 + len_t < plen) {
 			if (len_t > 0) {
@@ -934,12 +937,12 @@ static inline void delete_till_end(void) {
 }
 
 static void __print_prompt(void) {
-        RCons *cons = r_cons_singleton ();
+	RCons *cons = r_cons_singleton ();
 	int columns = r_cons_get_size (NULL) - 2;
 	int len, i, cols = R_MAX (1, columns - r_str_ansi_len (I.prompt) - 2);
 	if (cons->line->prompt_type == R_LINE_PROMPT_OFFSET) {
-                r_cons_gotoxy (0,  cons->rows);
-                r_cons_flush ();
+		r_cons_gotoxy (0,  cons->rows);
+		r_cons_flush ();
 	}
 	r_cons_clear_line (0);
 	if (cons->context->color_mode > 0) {
@@ -1074,7 +1077,7 @@ static inline void vi_cmd_e(void) {
 	}
 }
 
-static void __update_prompt_color (void) {
+static void __update_prompt_color(void) {
 	RCons *cons = r_cons_singleton ();
 	const char *BEGIN = "", *END = "";
 	if (cons->context->color_mode) {
@@ -1375,7 +1378,7 @@ R_API const char *r_line_readline_cb(RLineReadCallback cb, void *user) {
 		if (!fgets (I.buffer.data, R_LINE_BUFSIZE, stdin)) {
 			return NULL;
 		}
-		return (*I.buffer.data)? I.buffer.data: r_line_nullstr;
+		return (*I.buffer.data)? I.buffer.data: "";
 	}
 
 	memset (&buf, 0, sizeof buf);
@@ -1548,7 +1551,7 @@ R_API const char *r_line_readline_cb(RLineReadCallback cb, void *user) {
 					if (clipText) {
 						char *txt = r_sys_conv_win_to_utf8 (clipText);
 						if (!txt) {
-							R_LOG_ERROR ("Failed to allocate memory\n");
+							R_LOG_ERROR ("Failed to allocate memory");
 							break;
 						}
 						int len = strlen (txt);
@@ -2041,7 +2044,7 @@ R_API const char *r_line_readline_cb(RLineReadCallback cb, void *user) {
 				}
 				dietline_print_risprompt (gcomp_line);
 			} else {
-			        __print_prompt ();
+				__print_prompt ();
 			}
 			fflush (stdout);
 		}
@@ -2065,7 +2068,7 @@ _end:
 	if (!memcmp (I.buffer.data, "!history", 8)) {
 		// if (I.buffer.data[0]=='!' && I.buffer.data[1]=='\0') {
 		r_line_hist_list ();
-		return r_line_nullstr;
+		return "";
 	}
-	return I.buffer.data[0] != '\0'? I.buffer.data: r_line_nullstr;
+	return I.buffer.data[0] != '\0'? I.buffer.data: "";
 }

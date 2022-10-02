@@ -27,7 +27,7 @@ R_API struct r_socket_proc_t *r_socket_proc_open(char* const argv[]) {
 	}
 
 	if (pipe (sp->fd0)==-1) {
-		perror ("pipe");
+		r_sys_perror ("pipe");
 		goto error;
 	}
 	if (fcntl (sp->fd0[0], flags) < 0) {
@@ -38,7 +38,7 @@ R_API struct r_socket_proc_t *r_socket_proc_open(char* const argv[]) {
 	}
 
 	if (pipe (sp->fd1)==-1) {
-		perror ("pipe");
+		r_sys_perror ("pipe");
 		goto error;
 	}
 	if (fcntl (sp->fd1[0], flags) < 0) {
@@ -59,7 +59,7 @@ R_API struct r_socket_proc_t *r_socket_proc_open(char* const argv[]) {
 		exit (1);
 		break;
 	case -1:
-		perror ("fork");
+		r_sys_perror ("fork");
 		r_socket_proc_close (sp);
 		goto error;
 		//r_socket_block_time (sp, false, 0);
@@ -88,28 +88,28 @@ R_API int r_socket_proc_close(struct r_socket_proc_t *sp) {
 	return 0;
 }
 
-R_API int r_socket_proc_read (RSocketProc *sp, unsigned char *buf, int len) {
+R_API int r_socket_proc_read(RSocketProc *sp, unsigned char *buf, int len) {
 	RSocket s;
 	s.is_ssl = false;
 	s.fd = sp->fd1[0];
 	return r_socket_read (&s, buf, len);
 }
 
-R_API int r_socket_proc_gets (RSocketProc *sp, char *buf, int size) {
+R_API int r_socket_proc_gets(RSocketProc *sp, char *buf, int size) {
 	RSocket s;
 	s.is_ssl = false;
 	s.fd = sp->fd1[0];
 	return r_socket_gets (&s, buf, size);
 }
 
-R_API int r_socket_proc_write (RSocketProc *sp, void *buf, int len) {
+R_API int r_socket_proc_write(RSocketProc *sp, void *buf, int len) {
 	RSocket s;
 	s.is_ssl = false;
 	s.fd = sp->fd0[1];
 	return r_socket_write (&s, buf, len);
 }
 
-R_API void r_socket_proc_printf (RSocketProc *sp, const char *fmt, ...) {
+R_API void r_socket_proc_printf(RSocketProc *sp, const char *fmt, ...) {
 	RSocket s;
 	char buf[BUFFER_SIZE];
 	va_list ap;
@@ -123,7 +123,7 @@ R_API void r_socket_proc_printf (RSocketProc *sp, const char *fmt, ...) {
 	}
 }
 
-R_API int r_socket_proc_ready (RSocketProc *sp, int secs, int usecs) {
+R_API int r_socket_proc_ready(RSocketProc *sp, int secs, int usecs) {
 	RSocket s;
 	s.is_ssl = false;
 	s.fd = sp->fd1[0];

@@ -1,15 +1,27 @@
 
 static char *get_reg_profile(RAnal *anal) {
 	const char *p;
-	if (anal->bits == 64) {
+	if (anal->config->bits == 64) {
 		p = \
 		"=PC	pc\n"
 		"=SP	sp\n"
 		"=BP	x29\n"
+		"=R0	x0\n"
+		"=R1	x1\n"
+		"=R2	x2\n"
+		"=R3	x3\n"
+		"=F0	d0\n"
+		"=F1	d1\n"
+		"=F2	d2\n"
+		"=F3	d3\n"
 		"=A0	x0\n"
 		"=A1	x1\n"
 		"=A2	x2\n"
 		"=A3	x3\n"
+		"=A4	x4\n"
+		"=A5	x5\n"
+		"=A6	x6\n"
+		"=A7	x7\n"
 		"=ZF	zf\n"
 		"=SF	nf\n"
 		"=OF	vf\n"
@@ -322,6 +334,111 @@ static char *get_reg_profile(RAnal *anal) {
 		"fpu	v30h	.64	776	0\n"
 		"fpu	v31h	.64	792	0\n"
 
+        // this sucks but q* is a valid alias
+        // for the vector registers in arm64
+
+        /* 128 bit vector */
+		"fpu	q0	.128	288	0\n"
+		"fpu	q1	.128	304	0\n"
+		"fpu	q2	.128	320	0\n"
+		"fpu	q3	.128	336	0\n"
+		"fpu	q4	.128	352	0\n"
+		"fpu	q5	.128	368	0\n"
+		"fpu	q6	.128	384	0\n"
+		"fpu	q7	.128	400	0\n"
+		"fpu	q8	.128	416	0\n"
+		"fpu	q9	.128	432	0\n"
+		"fpu	q10	.128	448	0\n"
+		"fpu	q11	.128	464	0\n"
+		"fpu	q12	.128	480	0\n"
+		"fpu	q13	.128	496	0\n"
+		"fpu	q14	.128	512	0\n"
+		"fpu	q15	.128	528	0\n"
+		"fpu	q16	.128	544	0\n"
+		"fpu	q17	.128	560	0\n"
+		"fpu	q18	.128	576	0\n"
+		"fpu	q19	.128	592	0\n"
+		"fpu	q20	.128	608	0\n"
+		"fpu	q21	.128	624	0\n"
+		"fpu	q22	.128	640	0\n"
+		"fpu	q23	.128	656	0\n"
+		"fpu	q24	.128	672	0\n"
+		"fpu	q25	.128	688	0\n"
+		"fpu	q26	.128	704	0\n"
+		"fpu	q27	.128	720	0\n"
+		"fpu	q28	.128	736	0\n"
+		"fpu	q29	.128	752	0\n"
+		"fpu	q30	.128	768	0\n"
+		"fpu	q31	.128	784	0\n"
+
+		/* 64bit double */
+		"fpu	q0l		.64	288	0\n"
+		"fpu	q1l		.64	304	0\n"
+		"fpu	q2l		.64	320	0\n"
+		"fpu	q3l		.64	336	0\n"
+		"fpu	q4l		.64	352	0\n"
+		"fpu	q5l		.64	368	0\n"
+		"fpu	q6l		.64	384	0\n"
+		"fpu	q7l		.64	400	0\n"
+		"fpu	q8l		.64	416	0\n"
+		"fpu	q9l		.64	432	0\n"
+		"fpu	q10l	.64	448	0\n"
+		"fpu	q11l	.64	464	0\n"
+		"fpu	q12l	.64	480	0\n"
+		"fpu	q13l	.64	496	0\n"
+		"fpu	q14l	.64	512	0\n"
+		"fpu	q15l	.64	528	0\n"
+		"fpu	q16l	.64	544	0\n"
+		"fpu	q17l	.64	560	0\n"
+		"fpu	q18l	.64	576	0\n"
+		"fpu	q19l	.64	592	0\n"
+		"fpu	q20l	.64	608	0\n"
+		"fpu	q21l	.64	624	0\n"
+		"fpu	q22l	.64	640	0\n"
+		"fpu	q23l	.64	656	0\n"
+		"fpu	q24l	.64	672	0\n"
+		"fpu	q25l	.64	688	0\n"
+		"fpu	q26l	.64	704	0\n"
+		"fpu	q27l	.64	720	0\n"
+		"fpu	q28l	.64	736	0\n"
+		"fpu	q29l	.64	752	0\n"
+		"fpu	q30l	.64	768	0\n"
+		"fpu	q31l	.64	784	0\n"
+
+		/* 128 bit qector high 64 */
+		"fpu	q0h		.64	296	0\n"
+		"fpu	q1h		.64	312	0\n"
+		"fpu	q2h		.64	328	0\n"
+		"fpu	q3h		.64	344	0\n"
+		"fpu	q4h		.64	360	0\n"
+		"fpu	q5h		.64	376	0\n"
+		"fpu	q6h		.64	392	0\n"
+		"fpu	q7h		.64	408	0\n"
+		"fpu	q8h		.64	424	0\n"
+		"fpu	q9h		.64	440	0\n"
+		"fpu	q10h	.64	456	0\n"
+		"fpu	q11h	.64	472	0\n"
+		"fpu	q12h	.64	488	0\n"
+		"fpu	q13h	.64	504	0\n"
+		"fpu	q14h	.64	520	0\n"
+		"fpu	q15h	.64	536	0\n"
+		"fpu	q16h	.64	552	0\n"
+		"fpu	q17h	.64	568	0\n"
+		"fpu	q18h	.64	584	0\n"
+		"fpu	q19h	.64	600	0\n"
+		"fpu	q20h	.64	616	0\n"
+		"fpu	q21h	.64	632	0\n"
+		"fpu	q22h	.64	648	0\n"
+		"fpu	q23h	.64	664	0\n"
+		"fpu	q24h	.64	680	0\n"
+		"fpu	q25h	.64	696	0\n"
+		"fpu	q26h	.64	712	0\n"
+		"fpu	q27h	.64	728	0\n"
+		"fpu	q28h	.64	744	0\n"
+		"fpu	q29h	.64	760	0\n"
+		"fpu	q30h	.64	776	0\n"
+		"fpu	q31h	.64	792	0\n"
+		
 		/*  foo */
 		"gpr	fp	.64	232	0\n" // fp = x29
 		"gpr	lr	.64	240	0\n" // lr = x30
@@ -341,6 +458,7 @@ static char *get_reg_profile(RAnal *anal) {
 		"=LR	r14\n"
 		"=SP	sp\n"
 		"=BP	fp\n"
+		"=R0	r0\n"
 		"=A0	r0\n"
 		"=A1	r1\n"
 		"=A2	r2\n"
@@ -399,7 +517,7 @@ static char *get_reg_profile(RAnal *anal) {
 		"flg	vf	.1	.540	0	overflow\n" // +28
 		"flg	cf	.1	.541	0	carry\n" // +29
 		"flg	zf	.1	.542	0	zero\n" // +30
-		"flg	nf	.1	.543	0	negative\n" // +31
+		"flg	nf	.1	.543	0	sign\n" // +31 - also known as negative
 
 		/* NEON and VFP registers */
 		/* 32bit float sub-registers */
@@ -489,6 +607,10 @@ static char *get_reg_profile(RAnal *anal) {
 		"fpu	q15	.128	308	0\n"
 		;
 	}
-	const char *snReg = (!strcmp (anal->os, "android") || !strcmp (anal->os, "linux"))? "x8": "x16";
+	const char *os = anal->config->os;
+	if (!os) {
+		os = R_SYS_OS;
+	}
+	const char *snReg = (!strcmp (os, "android") || !strcmp (os, "linux"))? "x8": "x16";
 	return r_str_newf (p, snReg);
 }

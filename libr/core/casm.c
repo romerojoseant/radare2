@@ -6,7 +6,7 @@
 
 #define IFDBG if (0)
 
-static RCoreAsmHit * find_addr(RList *hits, ut64 addr);
+static RCoreAsmHit *find_addr(RList *hits, ut64 addr);
 static int prune_hits_in_hit_range(RList *hits, RCoreAsmHit *hit);
 static int is_hit_inrange(RCoreAsmHit *hit, ut64 start_range, ut64 end_range);
 static int is_addr_in_range(ut64 start, ut64 end, ut64 start_range, ut64 end_range);
@@ -208,7 +208,7 @@ R_API RList *r_core_asm_strsearch(RCore *core, const char *input, ut64 from, ut6
 				if (mode == 'a') { // check for case sensitive
 					matches = !r_str_ncasecmp (opst, tokens[matchcount], strlen (tokens[matchcount]));
 				} else if (!regexp) {
-					matches = strstr (opst, tokens[matchcount]) != NULL;
+					matches = !!strstr (opst, tokens[matchcount]);
 				} else {
 					rx = r_regex_new (tokens[matchcount], "es");
 					matches = r_regex_exec (rx, opst, 0, 0, 0) == 0;
@@ -278,6 +278,7 @@ beach:
 	free (buf);
 	free (ptr);
 	free (code);
+	free (inp);
 	R_FREE (opst);
 	r_cons_break_pop ();
 	return hits;
@@ -310,7 +311,7 @@ static void add_hit_to_hits(RList* hits, ut64 addr, int len, ut8 is_valid) {
 }
 
 static int prune_hits_in_addr_range(RList *hits, ut64 addr, ut64 len, ut8 is_valid) {
-	RCoreAsmHit hit = R_EMPTY;
+	RCoreAsmHit hit = {0};
 	hit.addr = addr;
 	hit.len = len;
 	hit.valid = is_valid;
@@ -344,7 +345,7 @@ static int prune_hits_in_hit_range(RList *hits, RCoreAsmHit *hit){
 	return result;
 }
 
-static RCoreAsmHit * find_addr(RList *hits, ut64 addr) {
+static RCoreAsmHit *find_addr(RList *hits, ut64 addr) {
 	// Find an address in the list of hits
 	RListIter *addr_iter = NULL;
 	RCoreAsmHit dummy_value;
@@ -547,7 +548,7 @@ R_API RList *r_core_asm_bwdisassemble(RCore *core, ut64 addr, int n, int len) {
 	return hits;
 }
 
-static RList * r_core_asm_back_disassemble_all(RCore *core, ut64 addr, ut64 len, ut64 max_hit_count, ut32 extra_padding){
+static RList *r_core_asm_back_disassemble_all(RCore *core, ut64 addr, ut64 len, ut64 max_hit_count, ut32 extra_padding){
 	RList *hits = r_core_asm_hit_list_new ();
 	RCoreAsmHit dummy_value;
 	RCoreAsmHit *hit = NULL;
@@ -604,7 +605,7 @@ static RList * r_core_asm_back_disassemble_all(RCore *core, ut64 addr, ut64 len,
 	return hits;
 }
 
-static RList *r_core_asm_back_disassemble (RCore *core, ut64 addr, int len, ut64 max_hit_count, ut8 disassmble_each_addr, ut32 extra_padding) {
+static RList *r_core_asm_back_disassemble(RCore *core, ut64 addr, int len, ut64 max_hit_count, ut8 disassmble_each_addr, ut32 extra_padding) {
 	RList *hits;;
 	RAsmOp op;
 	ut8 *buf = NULL;
@@ -752,13 +753,13 @@ static RList *r_core_asm_back_disassemble (RCore *core, ut64 addr, int len, ut64
 	return hits;
 }
 
-R_API RList *r_core_asm_back_disassemble_instr (RCore *core, ut64 addr, int len, ut32 hit_count, ut32 extra_padding){
+R_API RList *r_core_asm_back_disassemble_instr(RCore *core, ut64 addr, int len, ut32 hit_count, ut32 extra_padding){
 	// extra padding to allow for additional disassembly on border buffer cases
 	ut8 disassmble_each_addr  = false;
 	return r_core_asm_back_disassemble (core, addr, len, hit_count, disassmble_each_addr, extra_padding);
 }
 
-R_API RList *r_core_asm_back_disassemble_byte (RCore *core, ut64 addr, int len, ut32 hit_count, ut32 extra_padding){
+R_API RList *r_core_asm_back_disassemble_byte(RCore *core, ut64 addr, int len, ut32 hit_count, ut32 extra_padding){
 	// extra padding to allow for additional disassembly on border buffer cases
 	ut8 disassmble_each_addr  = true;
 	return r_core_asm_back_disassemble (core, addr, len, hit_count, disassmble_each_addr, extra_padding);

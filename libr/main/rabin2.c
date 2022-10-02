@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2009-2021 - pancake */
+/* radare - LGPL - Copyright 2009-2022 - pancake */
 
 #include <r_core.h>
 #include <r_types.h>
@@ -11,7 +11,7 @@
 static int rabin_show_help(int v) {
 	printf ("Usage: rabin2 [-AcdeEghHiIjlLMqrRsSUvVxzZ] [-@ at] [-a arch] [-b bits] [-B addr]\n"
 		"              [-C F:C:D] [-f str] [-m addr] [-n str] [-N m:M] [-P[-P] pdb]\n"
-		"              [-o str] [-O str] [-k query] [-D lang symname] file\n");
+		"              [-o str] [-O str] [-k query] [-D lang mangledsymbol] file\n");
 	if (v) {
 		printf (
 		" -@ [addr]       show section, symbol or import at addr\n"
@@ -24,7 +24,7 @@ static int rabin_show_help(int v) {
 		" -C [fmt:C:D]    create [elf,mach0,pe] with Code and Data hexpairs (see -a)\n"
 		" -d              show debug/dwarf information\n"
 		" -D lang name    demangle symbol name (-D all for bin.demangle=true)\n"
-		" -e              entrypoint\n"
+		" -e              program entrypoint\n"
 		" -ee             constructor/destructor entrypoints\n"
 		" -E              globally exportable symbols\n"
 		" -f [str]        select sub-bin named str\n"
@@ -46,7 +46,7 @@ static int rabin_show_help(int v) {
 		" -N [min:max]    force min:max number of chars per string (see -z and -zz)\n"
 		" -o [str]        output file/folder for write operations (out by default)\n"
 		" -O [str]        write/extract operations (-O help)\n"
-		" -p              show physical addresses\n"
+		" -p              show always physical addresses\n"
 		" -P              show debug/pdb information\n"
 		" -PP             download pdb file for binary\n"
 		" -q              be quiet, just show fewer data\n"
@@ -707,7 +707,7 @@ R_API int r_main_rabin2(int argc, const char **argv) {
 			if (is_active (R_BIN_REQ_CLASSES)) {
 				rad = R_MODE_CLASSDUMP;
 			} else {
-			  	set_action (R_BIN_REQ_CLASSES);
+				set_action (R_BIN_REQ_CLASSES);
 			}
 			break;
 		case 'f': arch_name = strdup (opt.arg); break;
@@ -854,6 +854,7 @@ R_API int r_main_rabin2(int argc, const char **argv) {
 			break;
 		}
 	}
+	core.io->va = va;
 
 	PJ *pj = NULL;
 	if (rad == R_MODE_JSON) {
@@ -1124,9 +1125,10 @@ R_API int r_main_rabin2(int argc, const char **argv) {
 	}
 #define isradjson (rad==R_MODE_JSON&&actions>0)
 #define run_action(n,x,y) {\
-	if (action&(x)) {\
-		if (isradjson) pj_k (pj, n);\
+	if (action & (x)) {\
+		if (isradjson) { pj_k (pj, n); } \
 		if (!r_core_bin_info (&core, y, pj, rad, va, &filter, chksum)) {\
+			eprintf ("Missing bin header %s\n", n);\
 			if (isradjson) pj_b (pj, false);\
 		};\
 	}\
@@ -1200,9 +1202,7 @@ R_API int r_main_rabin2(int argc, const char **argv) {
 		if (bf && bf->xtr_data) {
 			rabin_extract (bin, (!arch && !arch_name && !bits));
 		} else {
-			eprintf (
-				"Cannot extract bins from '%s'. No supported "
-				"plugins found!\n", bin->file);
+			eprintf ("Cannot extract bins from '%s'. No supported plugins found!\n", bin->file);
 		}
 	}
 	if (op && action & R_BIN_REQ_OPERATION) {
@@ -1215,6 +1215,7 @@ R_API int r_main_rabin2(int argc, const char **argv) {
 	pj_free (pj);
 	r_cons_flush ();
 	r_core_fini (&core);
+	r_syscmd_popalld ();
 
 	return 0;
 }

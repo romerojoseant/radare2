@@ -1,13 +1,14 @@
-/* radare2 - LGPL - Copyright 2013-2021 - pancake */
+/* radare2 - LGPL - Copyright 2013-2022 - pancake */
 
 #include <r_asm.h>
 #include <r_lib.h>
 #include "cs_version.h"
 
-#define USE_ITER_API 0
+#define USE_ITER_API 1
 
-static csh cd = 0;
-static int n = 0;
+static R_TH_LOCAL csh cd = 0;
+static R_TH_LOCAL int n = 0;
+static R_TH_LOCAL int omode = 0;
 
 static bool the_end(void *p) {
 #if 0
@@ -25,35 +26,64 @@ static bool the_end(void *p) {
 	return true;
 }
 
-static bool check_features(RAsm *a, cs_insn *insn);
-
 #include "cs_mnemonics.c"
 
 #include "asm_x86_vm.c"
 
+static bool check_features(const char *features, cs_insn *insn) {
+	if (!insn || !insn->detail) {
+		return false;
+	}
+	int i;
+	for (i = 0; i < insn->detail->groups_count; i++) {
+		int id = insn->detail->groups[i];
+		if (id < 128) {
+			continue;
+		}
+		if (id == X86_GRP_MODE32) {
+			continue;
+		}
+		if (id == X86_GRP_MODE64) {
+			continue;
+		}
+		const char *name = cs_group_name (cd, id);
+		if (!name) {
+			return true;
+		}
+		if (!strstr (features, name)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
-	static int omode = 0;
-	int mode, ret;
+	//op and buf can be null for aomj
+	r_return_val_if_fail (a, 0); //  && op && buf, 0);
+
+	int ret;
 	ut64 off = a->pc;
 
-	mode =  (a->bits == 64)? CS_MODE_64:
-		(a->bits == 32)? CS_MODE_32:
-		(a->bits == 16)? CS_MODE_16: 0;
+	const int bits = a->config->bits;
+	int mode = (bits == 64)? CS_MODE_64:
+		(bits == 32)? CS_MODE_32:
+		(bits == 16)? CS_MODE_16: 0;
 	if (cd && mode != omode) {
 		cs_close (&cd);
 		cd = 0;
 	}
+	omode = mode;
 	if (op) {
 		op->size = 0;
 	}
-	omode = mode;
 	if (cd == 0) {
 		ret = cs_open (CS_ARCH_X86, mode, &cd);
 		if (ret) {
 			return 0;
 		}
 	}
-	if (a->features && *a->features) {
+	const char *features = a->config->features;
+	if (R_STR_ISNOTEMPTY (features)) {
 		cs_option (cd, CS_OPT_DETAIL, CS_OPT_ON);
 	} else {
 		cs_option (cd, CS_OPT_DETAIL, CS_OPT_OFF);
@@ -63,62 +93,71 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 #if CS_API_MAJOR >= 4
 	cs_option (cd, CS_OPT_UNSIGNED, CS_OPT_ON);
 #endif
-	if (a->syntax == R_ASM_SYNTAX_MASM) {
+	const int syntax = a->config->syntax;
+	switch (syntax) {
+	case R_ASM_SYNTAX_MASM:
 #if CS_API_MAJOR >= 4
 		cs_option (cd, CS_OPT_SYNTAX, CS_OPT_SYNTAX_MASM);
 #endif
-	} else if (a->syntax == R_ASM_SYNTAX_ATT) {
+		break;
+	case R_ASM_SYNTAX_ATT:
 		cs_option (cd, CS_OPT_SYNTAX, CS_OPT_SYNTAX_ATT);
-	} else {
+		break;
+	default:
 		cs_option (cd, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
+		break;
 	}
-	if (!op) {
-		return true;
+	if (op) {
+		op->size = 1;
 	}
-	op->size = 1;
 	cs_insn *insn = NULL;
-#if USE_ITER_API
-	{
-		size_t size = len;
-		if (!insn || cd < 1) {
-			insn = cs_malloc (cd);
-		}
-		if (!insn) {
-			cs_free (insn, n);
-			return 0;
-		}
-		memset (insn, 0, insn->size);
-		insn->size = 1;
-		n = cs_disasm_iter (cd, (const uint8_t**)&buf, &size, (uint64_t*)&off, insn);
+	if (!buf) {
+		len = 0;
 	}
+#if USE_ITER_API
+	cs_insn insnack = {0};
+	cs_detail insnack_detail = {0};
+	insnack.detail = &insnack_detail;
+	size_t size = len;
+	insn = &insnack;
+	n = cs_disasm_iter (cd, (const uint8_t**)&buf, &size, (uint64_t*)&off, insn);
 #else
 	n = cs_disasm (cd, (const ut8*)buf, len, off, 1, &insn);
 #endif
+        //XXX: capstone lcall seg:off workaround, remove when capstone will be fixed
+	if (n >= 1 && mode == CS_MODE_16 && !strncmp (insn->mnemonic, "lcall", 5)) {
+		(void) r_str_replace (insn->op_str, ", ", ":", 0);
+	}
 	if (op) {
 		op->size = 0;
 	}
-	if (a->features && *a->features) {
-		if (!check_features (a, insn)) {
+	if (!check_features (features, insn)) {
+		if (op) {
 			op->size = insn->size;
 			r_asm_op_set_asm (op, "illegal");
 		}
 	}
+	// required for aomj to work. which is hacky
+	if (!op) {
+		return 0;
+	}
 	if (op->size == 0 && n > 0 && insn->size > 0) {
 		op->size = insn->size;
-		char *buf_asm = sdb_fmt ("%s%s%s",
+		char *buf_asm = r_str_newf ("%s%s%s",
 				insn->mnemonic, insn->op_str[0]?" ":"",
 				insn->op_str);
-		if (a->syntax != R_ASM_SYNTAX_MASM) {
+		if (a->config->syntax != R_ASM_SYNTAX_MASM) {
 			char *ptrstr = strstr (buf_asm, "ptr ");
 			if (ptrstr) {
 				memmove (ptrstr, ptrstr + 4, strlen (ptrstr + 4) + 1);
 			}
 		}
 		r_asm_op_set_asm (op, buf_asm);
+		free (buf_asm);
 	} else {
 		decompile_vm (a, op, buf, len);
 	}
-	if (a->syntax == R_ASM_SYNTAX_JZ) {
+	if (a->config->syntax == R_ASM_SYNTAX_JZ) {
 		char *buf_asm = r_strbuf_get (&op->buf_asm);
 		if (!strncmp (buf_asm, "je ", 3)) {
 			memcpy (buf_asm, "jz", 2);
@@ -126,26 +165,6 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 			memcpy (buf_asm, "jnz", 3);
 		}
 	}
-#if 0
-	// [eax + ebx*4]  =>  [eax + ebx * 4]
-	char *ast = strchr (op->buf_asm, '*');
-	if (ast && ast > op->buf_asm) {
-		ast--;
-		if (ast[0] != ' ') {
-			char *tmp = strdup (ast + 1);
-			if (tmp) {
-				ast[0] = ' ';
-				if (tmp[0] && tmp[1] && tmp[1] != ' ') {
-					strcpy (ast, " * ");
-					strcpy (ast + 3, tmp + 1);
-				} else {
-					strcpy (ast + 1, tmp);
-				}
-				free (tmp);
-			}
-		}
-	}
-#endif
 #if USE_ITER_API
 	/* do nothing because it should be allocated once and freed in the_end */
 #else
@@ -161,7 +180,7 @@ RAsmPlugin r_asm_plugin_x86_cs = {
 	.desc = "Capstone "CAPSTONE_VERSION_STRING" X86 disassembler",
 	.license = "BSD",
 	.arch = "x86",
-	.bits = 16|32|64,
+	.bits = 16 | 32 | 64,
 	.endian = R_SYS_ENDIAN_LITTLE,
 	.fini = the_end,
 	.mnemonics = mnemonics,
@@ -170,34 +189,6 @@ RAsmPlugin r_asm_plugin_x86_cs = {
 		"f16c,fma,fma4,fsgsbase,hle,mmx,rtm,sha,sse1,sse2,"
 		"sse3,sse41,sse42,sse4a,ssse3,pclmul,xop"
 };
-
-static bool check_features(RAsm *a, cs_insn *insn) {
-	const char *name;
-	int i;
-	if (!insn || !insn->detail) {
-		return true;
-	}
-	for (i = 0; i < insn->detail->groups_count; i++) {
-		int id = insn->detail->groups[i];
-		if (id < 128) {
-			continue;
-		}
-		if (id == X86_GRP_MODE32) {
-			continue;
-		}
-		if (id == X86_GRP_MODE64) {
-			continue;
-		}
-		name = cs_group_name (cd, id);
-		if (!name) {
-			return true;
-		}
-		if (!strstr (a->features, name)) {
-			return false;
-		}
-	}
-	return true;
-}
 
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct *radare_plugin_function(void) {

@@ -245,11 +245,11 @@ e asm.bits=64
 wz root @ 0x0000000100000faf
 pf z @ 0x0000000100000faf
 e cfg.bigendian=false
-16wxs cc @ 0x200
+16wx+cc @ 0x200
 wv8 0x0000000100000faf @ 0x204
 pf *z @ 0x204
 e cfg.bigendian=true
-16wxs cc @ 0x200
+16wx+cc @ 0x200
 wv8 0x0000000100000faf @ 0x204
 pf *z @ 0x204
 EOF
@@ -400,17 +400,17 @@ EXPECT=<<EOF
 0x000007fe = ovf "AB"
 0x000fffff = ovf ""
 
-* 1 fd: 3 +0x00000000 0x000003e8 - 0x00000be7 rwx 
+* 1 fd: 3 +0x00000000 0x000003e8 - 0x00000be7 rwx
 ----
-* 2 fd: 3 +0x00000400 0x000007e8 - 0x00000be7 rwx 
-- 1 fd: 3 +0x00000000 0x000003e8 - 0x000007e7 rwx 
+* 2 fd: 3 +0x00000400 0x000007e8 - 0x00000be7 rwx
+- 1 fd: 3 +0x00000000 0x000003e8 - 0x000007e7 rwx
 0x000007e7 = "CD"
 ----
-* 2 fd: 3 +0x00000400 0x000007e8 - 0x00000be7 -wx 
-- 1 fd: 3 +0x00000000 0x000003e8 - 0x000007e7 rwx 
+* 2 fd: 3 +0x00000400 0x000007e8 - 0x00000be7 -wx
+- 1 fd: 3 +0x00000000 0x000003e8 - 0x000007e7 rwx
 0x000007e7 = ovf "C"
 ----
-- 1 fd: 3 +0x00000000 0x000003e8 - 0x000007e7 rwx 
+- 1 fd: 3 +0x00000000 0x000003e8 - 0x000007e7 rwx
 0x000007e7 = ovf "C"
 
 0x000fffff = "12"

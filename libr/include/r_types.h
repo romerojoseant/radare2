@@ -5,11 +5,14 @@
 #define _FILE_OFFSET_BITS 64
 
 // defines like IS_DIGIT, etc'
+#include <r_types_base.h>
 #include "r_util/r_str_util.h"
 #include <r_userconf.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdint.h> // required for uint64_t
+#include <inttypes.h> // required for PRIx64
 
 // TODO: fix this to make it crosscompile-friendly: R_SYS_OSTYPE ?
 /* operating system */
@@ -37,11 +40,6 @@
 #define R_NULLABLE /* pointer can be null */
 #define R_DEPRECATE /* should not be used in new code and should/will be removed in the future */
 #define R_IFNULL(x) /* default value for the pointer when null */
-#ifdef __GNUC__
-#define R_UNUSED __attribute__((__unused__))
-#else
-#define R_UNUSED /* unused */
-#endif
 
 #ifdef R_NEW
 #undef R_NEW
@@ -174,8 +172,6 @@
 #define HAVE_PTY __UNIX__ && LIBC_HAVE_FORK && !__sun
 #endif
 
-
-
 #if defined(EMSCRIPTEN) || defined(__wasi__) || defined(__linux__) || defined(__APPLE__) || defined(__GNU__) || defined(__ANDROID__) || defined(__QNX__) || defined(__sun) || defined(__HAIKU__) || defined(__serenity__) || defined(__vinix__)
   #define __BSD__ 0
   #define __UNIX__ 1
@@ -240,8 +236,6 @@
 #else
 #define R_PRINTF_CHECK(fmt, dots)
 #endif
-
-#include <r_types_base.h>
 
 #undef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
@@ -313,12 +307,10 @@ typedef int (*PrintfCallback)(const char *str, ...) R_PRINTF_CHECK(1, 2);
 #elif R_INLINE
   #define R_API inline
 #else
-  #if __MINGW32__
+  #if __WINDOWS__
     #define R_API __declspec(dllexport)
   #elif defined(__GNUC__) && __GNUC__ >= 4
     #define R_API __attribute__((visibility("default")))
-  #elif defined(_MSC_VER)
-    #define R_API __declspec(dllexport)
   #else
     #define R_API
   #endif
@@ -402,11 +394,6 @@ static inline void *r_new_copy(int size, void *data) {
 #endif
 #endif
 
-#ifndef HAVE_EPRINTF
-#define eprintf(...) fprintf(stderr,__VA_ARGS__)
-#define HAVE_EPRINTF 1
-#endif
-
 #ifndef typeof
 #define typeof(arg) __typeof__(arg)
 #endif
@@ -430,7 +417,7 @@ static inline void *r_new_copy(int size, void *data) {
 #define HAVE_REGEXP 1
 #endif
 
-#if __WINDOWS__ && !__MINGW32__
+#if __WINDOWS__
 #define PFMT64x "I64x"
 #define PFMT64d "I64d"
 #define PFMT64u "I64u"
@@ -442,10 +429,10 @@ static inline void *r_new_copy(int size, void *data) {
 #define LDBLFMT "f"
 #define HHXFMT  "x"
 #else
-#define PFMT64x "llx"
-#define PFMT64d "lld"
-#define PFMT64u "llu"
-#define PFMT64o "llo"
+#define PFMT64x PRIx64
+#define PFMT64d PRId64
+#define PFMT64u PRIu64
+#define PFMT64o PRIo64
 #define PFMTSZx "zx"
 #define PFMTSZd "zd"
 #define PFMTSZu "zu"
@@ -463,6 +450,55 @@ static inline void *r_new_copy(int size, void *data) {
 
 #ifndef O_BINARY
 #define O_BINARY 0
+#endif
+
+#ifndef eprintf
+#define eprintf(...) fprintf (stderr, __VA_ARGS__)
+#endif
+
+#ifndef R2_DEBUG_EPRINT
+#define R2_DEBUG_EPRINT 0
+#endif
+#if !R2_DEBUG_EPRINT
+#define EPRINT_STR
+#define EPRINT_CHAR
+#define EPRINT_INT
+#define EPRINT_BOOL
+#define EPRINT_PTR
+
+#define EPRINT_UT64
+#define EPRINT_ST64
+#define EPRINT_UT32
+#define EPRINT_ST32
+#define EPRINT_UT16
+#define EPRINT_ST16
+#define EPRINT_UT8
+#define EPRINT_ST8
+#else
+/* Pass R2_NO_EPRINT_MACROS=1 as an environment variable to disable these
+ * macros at runtime. Used by r2r to prevent interference with tests. */
+#define EPRINT_VAR_WRAPPER(name, fmt, ...) {				\
+	char *eprint_env = r_sys_getenv ("R2_NO_EPRINT_MACROS");	\
+	if (!eprint_env || strcmp (eprint_env, "1")) {			\
+		eprintf (#name ": " fmt "\n", __VA_ARGS__);		\
+	}								\
+	free (eprint_env);						\
+}
+
+#define EPRINT_STR(x) EPRINT_VAR_WRAPPER (x, "\"%s\"", x)
+#define EPRINT_CHAR(x) EPRINT_VAR_WRAPPER (x, "'%c' (0x%x)", x, x)
+#define EPRINT_INT(x) EPRINT_VAR_WRAPPER (x, "%d (0x%x)", x, x)
+#define EPRINT_BOOL(x) EPRINT_VAR_WRAPPER (x, "%s", x? "true": "false")
+#define EPRINT_PTR(x) EPRINT_VAR_WRAPPER (x, "%p", x)
+
+#define EPRINT_UT64(x) EPRINT_VAR_WRAPPER (x, "%" PFMT64u " (0x%" PFMT64x ")", x, x)
+#define EPRINT_ST64(x) EPRINT_VAR_WRAPPER (x, "%" PFMT64d " (0x%" PFMT64x ")", x, x)
+#define EPRINT_UT32(x) EPRINT_VAR_WRAPPER (x, "%" PFMT32u " (0x%" PFMT32x ")", x, x)
+#define EPRINT_ST32(x) EPRINT_VAR_WRAPPER (x, "%" PFMT32d " (0x%" PFMT32x ")", x, x)
+#define EPRINT_UT16(x) EPRINT_VAR_WRAPPER (x, "%hu (0x%hx)", x, x)
+#define EPRINT_ST16(x) EPRINT_VAR_WRAPPER (x, "%hd (0x%hx)", x, x)
+#define EPRINT_UT8(x) EPRINT_VAR_WRAPPER (x, "%hhu (0x%hhx)", x, x)
+#define EPRINT_ST8(x) EPRINT_VAR_WRAPPER (x, "%hhd (0x%hhx)", x, x)
 #endif
 
 #if __APPLE__
@@ -531,6 +567,10 @@ static inline void *r_new_copy(int size, void *data) {
 #elif __mips__
 #define R_SYS_ARCH "mips"
 #define R_SYS_BITS R_SYS_BITS_32
+#define R_SYS_ENDIAN 1
+#elif __loongarch__
+#define R_SYS_ARCH "loongarch"
+#define R_SYS_BITS (R_SYS_BITS_32 | R_SYS_BITS_64)
 #define R_SYS_ENDIAN 1
 #elif __EMSCRIPTEN__
 /* we should default to wasm when ready */
@@ -603,7 +643,8 @@ typedef enum {
 	R_SYS_ARCH_HPPA,
 	R_SYS_ARCH_V810,
 	R_SYS_ARCH_LM32,
-	R_SYS_ARCH_RISCV
+	R_SYS_ARCH_RISCV,
+	R_SYS_ARCH_ESIL,
 } RSysArch;
 
 #define MONOTONIC_LINUX (__linux__ && _POSIX_C_SOURCE >= 199309L)
@@ -704,24 +745,21 @@ static inline void r_run_call10(void *fcn, void *arg1, void *arg2, void *arg3, v
 }
 
 #ifndef container_of
-# ifdef _MSC_VER
-#  define container_of(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
-# else
-#  define container_of(ptr, type, member) ((type *)((char *)(__typeof__(((type *)0)->member) *){ptr} - offsetof(type, member)))
-# endif
+#define container_of(ptr, type, member) (ptr? ((type *)((char *)(ptr) - r_offsetof(type, member))): NULL)
 #endif
 
 // reference counter
 typedef int RRef;
 
 #define R_REF_NAME refcount
-#define r_ref(x) x->R_REF_NAME++;
-#define r_ref_init(x) x->R_REF_NAME = 1
-#define r_unref(x,f) { assert (x->R_REF_NAME> 0); if (!--(x->R_REF_NAME)) { f(x); } }
+#define r_ref(x) ((x)->R_REF_NAME++, (x));
+#define r_ref_init(x,y) (x)->R_REF_NAME = 1;(x)->free = (void *)(y)
+// #define r_unref(x) { assert (x->R_REF_NAME > 0); if (!--(x->R_REF_NAME)) { x->free(x); } }
+#define r_unref(x) { if (x->R_REF_NAME > 0 && !--(x->R_REF_NAME)) { x->free(x); } }
 
-#define R_REF_TYPE RRef R_REF_NAME
+#define R_REF_TYPE RRef R_REF_NAME; void (*free)(void*)
 #define R_REF_FUNCTIONS(s, n) \
 static inline void n##_ref(s *x) { x->R_REF_NAME++; } \
-static inline void n##_unref(s *x) { r_unref (x, n##_free); }
+static inline void n##_unref(s *x) { r_unref(x); }
 
 #endif // R2_TYPES_H

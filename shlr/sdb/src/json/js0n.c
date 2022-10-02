@@ -12,6 +12,8 @@
 #define HAVE_COMPUTED_GOTOS 0
 #elif __EMSCRIPTEN__
 #define HAVE_COMPUTED_GOTOS 0
+#elif __cplusplus
+#define HAVE_COMPUTED_GOTOS 0
 #else
 #define HAVE_COMPUTED_GOTOS 1
 #endif
@@ -31,7 +33,7 @@ int sdb_js0n(const ut8 *js, RangstrType len, RangstrType *out) {
 	ut32 prev = 0;
 	const ut8 *cur, *end;
 	int depth = 0, utf8_remain = 0;
-	static void *gostruct[] = {
+	const static void *const gostruct[] = {
 		[0 ... 255] = &&l_bad,
 		['\t'] = &&l_loop, [' '] = &&l_loop, ['\r'] = &&l_loop, ['\n'] = &&l_loop,
 		['"'] = &&l_qup,
@@ -46,7 +48,7 @@ int sdb_js0n(const ut8 *js, RangstrType len, RangstrType *out) {
 		['t'] = &&l_bare, ['f'] = &&l_bare, ['n'] = &&l_bare // true, false, null
 #endif
 	};
-	static void *gobare[] = {
+	const static void *const gobare[] = {
 		[0 ... 31] = &&l_bad,
 		[32 ... 126] = &&l_loop, // could be more pedantic/validation-checking
 		['\t'] = &&l_unbare, [' '] = &&l_unbare, ['\r'] = &&l_unbare, ['\n'] = &&l_unbare,
@@ -54,7 +56,7 @@ int sdb_js0n(const ut8 *js, RangstrType len, RangstrType *out) {
 		[127 ... 255] = &&l_bad
 	};
 #if HAVE_RAWSTR
-	static void *gorawstr[] = {
+	const static void *const gorawstr[] = {
 		[0 ... 31] = &&l_bad, [127] = &&l_bad,
 		[32 ... 126] = &&l_loop,
 		['\\'] = &&l_esc, [':'] = &&l_qdown,
@@ -65,7 +67,7 @@ int sdb_js0n(const ut8 *js, RangstrType len, RangstrType *out) {
 		[248 ... 255] = &&l_bad
 	};
 #endif
-	static void *gostring[] = {
+	const static void *const gostring[] = {
 		[0 ... 31] = &&l_bad, [127] = &&l_bad,
 		[32 ... 126] = &&l_loop,
 		['\\'] = &&l_esc, ['"'] = &&l_qdown,
@@ -75,17 +77,17 @@ int sdb_js0n(const ut8 *js, RangstrType len, RangstrType *out) {
 		[240 ... 247] = &&l_utf8_4,
 		[248 ... 255] = &&l_bad
 	};
-	static void *goutf8_continue[] = {
+	const static void *const goutf8_continue[] = {
 		[0 ... 127] = &&l_bad,
 		[128 ... 191] = &&l_utf_continue,
 		[192 ... 255] = &&l_bad
 	};
-	static void *goesc[] = {
+	const static void *const goesc[] = {
 		[0 ... 255] = &&l_bad,
 		['"'] = &&l_unesc, ['\\'] = &&l_unesc, ['/'] = &&l_unesc, ['b'] = &&l_unesc,
 		['f'] = &&l_unesc, ['n'] = &&l_unesc, ['r'] = &&l_unesc, ['t'] = &&l_unesc, ['u'] = &&l_unesc
 	};
-	static void **go = gostruct;
+	const void *const *go = gostruct;
 	
 #if 0 
 printf ("                 gostrct= %p\n", gostruct);

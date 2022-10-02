@@ -1,3 +1,5 @@
+/* radare - LGPL - Copyright 2017-2022 - pancake */
+
 #include "crypto_serpent_algo.h"
 #include "r_util/r_assert.h"
 
@@ -74,8 +76,8 @@ static void apply_IP(ut32 in[DW_BY_BLOCK], ut32 out[DW_BY_BLOCK]) {
 	int i;
 	for (i = 0; i < DW_BY_BLOCK * 32; i++) {
 		index = IPTable[i];
-		out[i / 32] ^= (-(ut32)get_bit (index % 32, in[index / 32]) ^ out[i / 32])
-			& (1 << (i & 0x1f));
+		out[i / 32] ^= (ut32)(-(ut32)get_bit (index % 32, in[index / 32]) ^ out[i / 32])
+			& ((ut32)1 << (i & 0x1f));
 	}
 }
 
@@ -84,13 +86,13 @@ static void apply_FP(ut32 in[DW_BY_BLOCK], ut32 out[DW_BY_BLOCK]) {
 	int i;
 	for (i = 0; i < DW_BY_BLOCK * 32; i++) {
 		index = FPTable[i];
-		out[i / 32] ^= (-(ut32)get_bit (index % 32, in[index / 32]) ^ out[i / 32])
-			& (1 << (i & 0x1f));
+		out[i / 32] ^= (ut32)(-(ut32)get_bit (index % 32, in[index / 32]) ^ out[i / 32])
+			& ((ut32)1 << (i & 0x1f));
 	}
 }
 
-static bool serpent_keyschedule(struct serpent_state st, ut32 subkeys[NB_SUBKEYS * DW_BY_BLOCK]) {
-	if ((st.key_size != 128) && (st.key_size != 192) 
+static bool serpent_keyschedule(struct serpent_state st, ut32 subkeys[NB_SUBKEYS *DW_BY_BLOCK]) {
+	if ((st.key_size != 128) && (st.key_size != 192)
 			&& (st.key_size != 256)) {
 		eprintf ("Invalid key size");
 		return false;
@@ -129,14 +131,14 @@ static bool serpent_keyschedule(struct serpent_state st, ut32 subkeys[NB_SUBKEYS
 				| get_bit (j, tmpkeys[3 + DW_BY_BLOCK * i + DW_BY_USERKEY]) << 3;
 			out = apply_sbox (si, in);
 			for (l = 0; l < DW_BY_BLOCK; l++) {
-				subkeys[l + DW_BY_BLOCK * i] |= get_bit (l, (ut32)out) << j;
+				subkeys[l + DW_BY_BLOCK * i] |= (ut32)get_bit (l, (ut32)out) << j;
 			}
 		}
 	}
 
 	// Apply IP on every subkey
 	for (i = 0; i < NB_SUBKEYS; i++) {
-		apply_IP (&subkeys[i * DW_BY_BLOCK], 
+		apply_IP (&subkeys[i * DW_BY_BLOCK],
 				&tmpkeys[DW_BY_USERKEY + i * DW_BY_BLOCK]);
 	}
 
@@ -155,7 +157,7 @@ static void apply_permut(ut32 block[DW_BY_BLOCK]) {
 	ut32 tmp_block[DW_BY_BLOCK] = {0};
 	apply_FP (block, tmp_block);
 	rotl (tmp_block + 0, 13);
-	rotl (tmp_block + 2, 3); 
+	rotl (tmp_block + 2, 3);
 	tmp_block[1] ^= tmp_block[0] ^ tmp_block[2];
 	tmp_block[3] ^= tmp_block[2] ^ (tmp_block[0] << 3);
 	rotl (tmp_block + 1, 1);
@@ -178,7 +180,7 @@ static void apply_permut_inv(ut32 block[DW_BY_BLOCK]) {
 	rotr (tmp_block + 1, 1);
 	tmp_block[3] ^= tmp_block[2] ^ (tmp_block[0] << 3);
 	tmp_block[1] ^= tmp_block[0] ^ tmp_block[2];
-	rotr (tmp_block + 2, 3); 
+	rotr (tmp_block + 2, 3);
 	rotr (tmp_block + 0, 13);
 	apply_IP (tmp_block, block);
 }
@@ -189,7 +191,7 @@ static void apply_round(int round, ut32 block[DW_BY_BLOCK], ut32 subkeys[DW_BY_B
 	apply_xor (block, subkeys + 4 * round);
 
 	for (i = 0; i < DW_BY_BLOCK; i++) {
-		ut32 res = 0; 
+		ut32 res = 0;
 		for (j = 0; j < 8; j++) {
 			res |= apply_sbox (round % 8, (block[i] >> 4 * j) & 0xf) << 4 * j;
 		}
@@ -203,7 +205,7 @@ static void apply_round(int round, ut32 block[DW_BY_BLOCK], ut32 subkeys[DW_BY_B
 	}
 }
 
-static void apply_round_inv(int round, ut32 block[DW_BY_BLOCK], 
+static void apply_round_inv(int round, ut32 block[DW_BY_BLOCK],
 		ut32 subkeys[DW_BY_BLOCK*NB_SUBKEYS]) {
 	if (round == NB_ROUNDS - 1) {
 		apply_xor (block, subkeys + 4 * (round + 1));
@@ -215,9 +217,9 @@ static void apply_round_inv(int round, ut32 block[DW_BY_BLOCK],
 	ut32 res;
 
 	for (i = 0; i < DW_BY_BLOCK; i++) {
-		res = 0; 
+		res = 0;
 		for (j = 0; j < 8; j++) {
-			res |= apply_sbox_inv (round%8, (block[i] >> 4 * j) & 0xf) << 4 * j;
+			res |= (ut32)apply_sbox_inv (round % 8, (block[i] >> 4 * j) & 0xf) << (4 * j);
 		}
 		block[i] = res;
 	}
@@ -225,7 +227,7 @@ static void apply_round_inv(int round, ut32 block[DW_BY_BLOCK],
 	apply_xor (block, subkeys + 4 * round);
 }
 
-void serpent_encrypt(struct serpent_state *st, ut32 in[DW_BY_BLOCK], 
+void serpent_encrypt(struct serpent_state *st, ut32 in[DW_BY_BLOCK],
 		ut32 out[DW_BY_BLOCK]) {
 	int i;
 	ut32 subkeys[DW_BY_BLOCK * NB_SUBKEYS] = {0};

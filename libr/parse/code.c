@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2013-2021 - pancake */
+/* radare - LGPL - Copyright 2013-2022 - pancake */
 
 #include "r_util.h"
 #include "r_types.h"
@@ -9,7 +9,9 @@
 #include "c/tccpp.c"
 #include "c/libtcc.c"
 
-extern int tcc_sym_push(char *typename, int typesize, int meta);
+static R_TH_LOCAL RThreadLock r_tcc_lock = R_THREAD_LOCK_INIT;
+static R_TH_LOCAL TCCState *s1 = NULL;
+extern int tcc_sym_push(TCCState *s1, char *typename, int typesize, int meta);
 
 /* parse C code and return it in key-value form */
 
@@ -29,12 +31,15 @@ static void __appendString(const char *msg, char **s) {
 	}
 }
 
+// NOTE: must hold r_tcc_lock
 static bool __typeLoad(void *p, const char *k, const char *v) {
+	r_strf_buffer (128);
 	if (!p) {
 		return false;
 	}
 	int btype = 0;
 	RAnal *anal = (RAnal*)p;
+	// TCCState *s1 = NULL; // XXX THIS WILL MAKE IT CRASH
 	//r_cons_printf ("tk %s=%s\n", k, v);
 	// TODO: Add unions support
 	if (!strncmp (v, "struct", 6) && strncmp (k, "struct.", 7)) {
@@ -43,7 +48,7 @@ static bool __typeLoad(void *p, const char *k, const char *v) {
 		const char *typename = k;
 		int typesize = 0;
 		// TODO: Add typesize here
-		char* query = sdb_fmt ("struct.%s", k);
+		char* query = r_strf ("struct.%s", k);
 		char *members = sdb_get (anal->sdb_types, query, 0);
 		char *next, *ptr = members;
 		if (members) {
@@ -52,7 +57,7 @@ static bool __typeLoad(void *p, const char *k, const char *v) {
 				if (!name) {
 					break;
 				}
-				query = sdb_fmt ("struct.%s.%s", k, name);
+				query = r_strf ("struct.%s.%s", k, name);
 				char *subtype = sdb_get (anal->sdb_types, query, 0);
 				if (!subtype) {
 					break;
@@ -66,16 +71,16 @@ static bool __typeLoad(void *p, const char *k, const char *v) {
 					}
 					char *subname = tmp;
 					// TODO: Go recurse here
-					query = sdb_fmt ("struct.%s.%s.meta", subtype, subname);
+					query = r_strf ("struct.%s.%s.meta", subtype, subname);
 					btype = sdb_num_get (anal->sdb_types, query, 0);
-					tcc_sym_push (subtype, 0, btype);
+					tcc_sym_push (s1, subtype, 0, btype);
 				}
 				free (subtype);
 				ptr = next;
 			} while (next);
 			free (members);
 		}
-		tcc_sym_push ((char *)typename, typesize, btype);
+		tcc_sym_push (s1, (char *)typename, typesize, btype);
 	}
 	return true;
 }
@@ -97,12 +102,27 @@ static void __errorFunc(void *opaque, const char *msg) {
 	}
 }
 
+static TCCState *new_tcc(RAnal *anal) {
+	TCCState *ts = tcc_new (anal->config->arch, anal->config->bits, anal->config->os);
+	if (!ts) {
+		ts = tcc_new (R_SYS_ARCH, R_SYS_BITS, R_SYS_OS);
+		if (!ts) {
+			R_LOG_ERROR ("Cannot instantiate TCC for given arch (%s)", anal->config->arch);
+			return NULL;
+		}
+	}
+	return ts;
+}
+
 R_API char *r_parse_c_file(RAnal *anal, const char *path, const char *dir, char **error_msg) {
 	char *str = NULL;
-	TCCState *T = tcc_new (anal->cpu, anal->bits, anal->os);
+	r_th_lock_enter (&r_tcc_lock);
+	TCCState *T = new_tcc (anal);
 	if (!T) {
+		r_th_lock_leave (&r_tcc_lock);
 		return NULL;
 	}
+	s1 = T; // XXX delete global
 	tcc_set_callback (T, &__appendString, &str);
 	tcc_set_error_func (T, (void *)error_msg, __errorFunc);
 	sdb_foreach (anal->sdb_types, __typeLoad, anal); // why is this needed??
@@ -123,15 +143,20 @@ R_API char *r_parse_c_file(RAnal *anal, const char *path, const char *dir, char 
 	r_list_free (dirs);
 	free (d);
 	tcc_delete (T);
+	r_th_lock_leave (&r_tcc_lock);
 	return str;
 }
 
 R_API char *r_parse_c_string(RAnal *anal, const char *code, char **error_msg) {
 	char *str = NULL;
-	TCCState *T = tcc_new (anal->cpu, anal->bits, anal->os);
+	r_th_lock_enter (&r_tcc_lock);
+	TCCState *T = new_tcc (anal);
 	if (!T) {
+		R_LOG_ERROR ("Cannot instantiate TCC for given arch (%s)", anal->config->arch);
+		r_th_lock_leave (&r_tcc_lock);
 		return NULL;
 	}
+	s1 = T; // XXX delete global
 	tcc_set_callback (T, &__appendString, &str);
 	tcc_set_error_func (T, (void *)error_msg, __errorFunc);
 	sdb_foreach (anal->sdb_types, __typeLoad, NULL);
@@ -139,10 +164,6 @@ R_API char *r_parse_c_string(RAnal *anal, const char *code, char **error_msg) {
 		R_FREE (str);
 	}
 	tcc_delete (T);
+	r_th_lock_leave (&r_tcc_lock);
 	return str;
-}
-
-// XXX do not use globals
-R_API void r_parse_c_reset(RParse *p) {
-	anon_sym = SYM_FIRST_ANOM;
 }

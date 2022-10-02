@@ -61,9 +61,9 @@
 
 
 #if HAVE_PTY
-static int (*dyn_openpty)(int *amaster, int *aslave, char *name, struct termios *termp, struct winsize *winp) = NULL;
-static int (*dyn_login_tty)(int fd) = NULL;
-static id_t (*dyn_forkpty)(int *amaster, char *name, struct termios *termp, struct winsize *winp) = NULL;
+static int(*dyn_openpty)(int *amaster, int *aslave, char *name, struct termios *termp, struct winsize *winp) = NULL;
+static int(*dyn_login_tty)(int fd) = NULL;
+static id_t(*dyn_forkpty)(int *amaster, char *name, struct termios *termp, struct winsize *winp) = NULL;
 static void dyn_init(void) {
 	if (!dyn_openpty) {
 		dyn_openpty = r_lib_dl_sym (NULL, "openpty");
@@ -559,6 +559,8 @@ R_API bool r_run_parseline(RRunProfile *p, const char *b) {
 		p->_maxfd = atoi (e);
 	} else if (!strcmp (b, "bits")) {
 		p->_bits = atoi (e);
+	} else if (!strcmp (b, "time")) {
+		p->_time = true;
 	} else if (!strcmp (b, "chroot")) {
 		p->_chroot = strdup (e);
 	} else if (!strcmp (b, "libpath")) {
@@ -696,7 +698,7 @@ static int fd_forward(int in_fd, int out_fd, char **buff) {
 	int size = 0;
 
 	if (ioctl (in_fd, FIONREAD, &size) == -1) {
-		perror ("ioctl");
+		r_sys_perror ("ioctl");
 		return -1;
 	}
 	if (!size) { // child process exited or socket is closed
@@ -705,16 +707,16 @@ static int fd_forward(int in_fd, int out_fd, char **buff) {
 
 	char *new_buff = realloc (*buff, size);
 	if (!new_buff) {
-		eprintf ("Failed to allocate buffer for redirection");
+		eprintf ("Failed to allocate buffer for redirection\n");
 		return -1;
 	}
 	*buff = new_buff;
 	if (read (in_fd, *buff, size) != size) {
-		perror ("read");
+		r_sys_perror ("read");
 		return -1;
 	}
 	if (write (out_fd, *buff, size) != size) {
-		perror ("write");
+		r_sys_perror ("write");
 		return -1;
 	}
 
@@ -748,7 +750,7 @@ static int redirect_socket_to_pty(RSocket *sock) {
 	int fdm = -1, fds = -1;
 
 	if (dyn_openpty && dyn_openpty (&fdm, &fds, NULL, NULL, NULL) == -1) {
-		perror ("opening pty");
+		r_sys_perror ("opening pty");
 		return -1;
 	}
 
@@ -780,7 +782,7 @@ static int redirect_socket_to_pty(RSocket *sock) {
 			FD_SET (sockfd, &readfds);
 
 			if (select (max_fd + 1, &readfds, NULL, NULL, NULL) == -1) {
-				perror ("select error");
+				r_sys_perror ("select error");
 				break;
 			}
 
@@ -949,7 +951,7 @@ R_API int r_run_config_env(RRunProfile *p) {
 	if (p->_r2sleep != 0) {
 		r_sys_sleep (p->_r2sleep);
 	}
-#if __UNIX__
+#if __UNIX__ && !__wasi__
 	if (p->_chroot) {
 		if (chdir (p->_chroot) == -1) {
 			eprintf ("Cannot chdir to chroot in %s\n", p->_chroot);
@@ -992,7 +994,7 @@ R_API int r_run_config_env(RRunProfile *p) {
 		}
 	}
 #endif
-#if __UNIX__
+#if __UNIX__ && !__wasi__
 	if (p->_setuid) {
 		ret = setgroups (0, NULL);
 		if (ret < 0) {
@@ -1010,7 +1012,11 @@ R_API int r_run_config_env(RRunProfile *p) {
 		}
 	}
 	if (p->_setgid) {
+#if __wasi__
+		ret = 0;
+#else
 		ret = setgid (atoi (p->_setgid));
+#endif
 		if (ret < 0) {
 			return 1;
 		}
@@ -1079,7 +1085,9 @@ R_API int r_run_config_env(RRunProfile *p) {
 #endif
 	}
 	if (p->_timeout) {
-#if __UNIX__
+#if __wasi__
+		// do nothing
+#elif __UNIX__
 		int mypid = r_sys_getpid ();
 		if (!r_sys_fork ()) {
 			int use_signal = p->_timeout_sig;
@@ -1104,6 +1112,13 @@ R_API int r_run_config_env(RRunProfile *p) {
 	return 0;
 }
 
+static void time_end(bool chk, ut64 time_begin) {
+	if (chk) {
+		ut64 now = r_time_now ();
+		eprintf ("%"PFMT64d"\n", now - time_begin);
+	}
+}
+
 // NOTE: return value is like in unix return code (0 = ok, 1 = not ok)
 R_API int r_run_start(RRunProfile *p) {
 #if LIBC_HAVE_FORK
@@ -1111,6 +1126,10 @@ R_API int r_run_start(RRunProfile *p) {
 		exit (execv (p->_program, (char* const*)p->_args));
 	}
 #endif
+	ut64 time_begin = 0;
+	if (p->_time) {
+		time_begin = r_time_now ();
+	}
 #if __APPLE__ && !__POWERPC__ && LIBC_HAVE_FORK
 	posix_spawnattr_t attr = {0};
 	pid_t pid = -1;
@@ -1152,13 +1171,14 @@ R_API int r_run_start(RRunProfile *p) {
 			break;
 		default:
 			eprintf ("posix_spawnp: unknown error %d\n", ret);
-			perror ("posix_spawnp");
+			r_sys_perror ("posix_spawnp");
 			break;
 		}
 		exit (ret);
 	}
 #endif
 	if (p->_system) {
+		int rc = 0;
 		if (p->_pid) {
 			eprintf ("PID: Cannot determine pid with 'system' directive. Use 'program'.\n");
 		}
@@ -1168,7 +1188,7 @@ R_API int r_run_start(RRunProfile *p) {
 #else
 			pid_t child = r_sys_fork ();
 			if (child == -1) {
-				perror ("fork");
+				r_sys_perror ("fork");
 				exit (1);
 			}
 			if (child) {
@@ -1181,7 +1201,9 @@ R_API int r_run_start(RRunProfile *p) {
 				}
 				exit (0);
 			}
+#if !__wasi__
 			setsid ();
+#endif
 			if (p->_timeout) {
 #if __UNIX__
 				int mypid = r_sys_getpid ();
@@ -1191,10 +1213,13 @@ R_API int r_run_start(RRunProfile *p) {
 						use_signal = SIGKILL;
 					}
 					sleep (p->_timeout);
+#if !__wasi__
 					if (!kill (mypid, 0)) {
 						// eprintf ("\nrarun2: Interrupted by timeout\n");
 					}
 					kill (mypid, use_signal);
+#endif
+					time_end (p->_time, time_begin);
 					exit (0);
 				}
 #else
@@ -1202,25 +1227,27 @@ R_API int r_run_start(RRunProfile *p) {
 #endif
 			}
 #endif
-#if __UNIX__
+#if __UNIX__ && !__wasi__
 			close (0);
 			close (1);
 			char *bin_sh = r_file_binsh ();
 			if (bin_sh) {
-				exit (execl (bin_sh, bin_sh, "-c", p->_system, NULL));
+				rc = execl (bin_sh, bin_sh, "-c", p->_system, NULL);
 			} else {
-				exit (r_sys_cmd (p->_system));
+				rc = r_sys_cmd (p->_system);
 			}
 			free (bin_sh);
 #else
-			exit (r_sys_cmd (p->_system));
+			rc = r_sys_cmd (p->_system);
 #endif
 		} else {
 			if (p->_pidfile) {
 				eprintf ("Warning: pidfile doesnt work with 'system'.\n");
 			}
-			exit (r_sys_cmd (p->_system));
+			rc = r_sys_cmd (p->_system);
 		}
+		time_end (p->_time, time_begin);
+		exit(rc);
 	}
 	if (p->_program) {
 		if (!r_file_exists (p->_program)) {
@@ -1243,7 +1270,11 @@ R_API int r_run_start(RRunProfile *p) {
 		}
 		// TODO: use posix_spawn
 		if (p->_setgid) {
+#if __wasi__
+			int ret = -1;
+#else
 			int ret = setgid (atoi (p->_setgid));
+#endif
 			if (ret < 0) {
 				return 1;
 			}
@@ -1261,7 +1292,7 @@ R_API int r_run_start(RRunProfile *p) {
 #endif
 
 		if (p->_nice) {
-#if __UNIX__ && !defined(__HAIKU__) && !defined(__serenity__)
+#if __UNIX__ && !defined(__HAIKU__) && !defined(__serenity__) && !__wasi__
 			if (nice (p->_nice) == -1) {
 				return 1;
 			}
@@ -1275,7 +1306,7 @@ R_API int r_run_start(RRunProfile *p) {
 #else
 			pid_t child = r_sys_fork ();
 			if (child == -1) {
-				perror ("fork");
+				r_sys_perror ("fork");
 				exit (1);
 			}
 			if (child) {
@@ -1288,14 +1319,17 @@ R_API int r_run_start(RRunProfile *p) {
 					exit (0);
 				}
 			}
+#if !__wasi__
 			setsid ();
 #if !LIBC_HAVE_FORK
-		exit (execv (p->_program, (char* const*)p->_args));
+			exit (execv (p->_program, (char* const*)p->_args));
+#endif
 #endif
 #endif
 		}
 // TODO: must be HAVE_EXECVE
 #if LIBC_HAVE_FORK
+		time_end (p->_time, time_begin);
 		exit (execv (p->_program, (char* const*)p->_args));
 #endif
 	}
@@ -1360,6 +1394,7 @@ R_API int r_run_start(RRunProfile *p) {
 		}
 		r_lib_dl_close (addr);
 	}
+	time_end (p->_time, time_begin);
 	return 0;
 }
 

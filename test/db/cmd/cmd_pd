@@ -196,7 +196,7 @@ e asm.marks=false
 e asm.nbytes=0
 e asm.comments=false
 e asm.flags=false
-e asm.fcnlines=false
+e asm.lines.fcn=false
 e asm.calls=false
 e asm.functions=false
 e scr.color=false
@@ -809,7 +809,7 @@ pd 1 @ 0x0001145f
 EOF
 EXPECT=<<EOF
             [32m0x0001145f[0m      [37mlea[36m rdi[0m,[36m[36m str.A_NULL_argv_0__was_passed_through_an_exec_system_call._n[0m[0m
-            [32m0x0001145f[0m      [37mlea[36m rdi[0m,[36m[36m [0m[[36m[36m0x0001b5d8[0m][36m[0m[0m
+            [32m0x0001145f[0m      [37mlea[36m rdi[0m,[36m[36m [0m[[36m0x0001b5d8[0m][36m[0m[0m
 EOF
 RUN
 
@@ -1182,7 +1182,7 @@ EXPECT=<<EOF
 [0m[36m|[0m           [32m0x004010e8[0m      [35mpush[36m esi[0m[0m
 [36m|[0m           [31m; 0x402004
 [0m[36m|[0m           [31m; DWORD GetCurrentProcessorNumber(void)
-[0m[36m|[0m           [32m0x004010e9[0m      [32mcall dword [sym.imp.KERNEL32.dll_GetCurrentProcessorNumber][0m
+[0m[36m|[0m           [32m0x004010e9[0m      [32mcall dword[36m [0m[[36msym.imp.KERNEL32.dll_GetCurrentProcessorNumber[0m][36m[0m[0m
 EOF
 RUN
 
@@ -1286,7 +1286,7 @@ pdJ 1 @ 0x00400506
 EOF
 EXPECT=<<EOF
 [{"offset":4195590,"text":"            ;-- main:"},{"offset":4195590,"text":"            0x00400506      55             push rbp"}]
-[{"offset":4195590,"text":"            ; DATA XREF from entry0 @ 0x40042d"},{"offset":4195590,"text":"/ 16: int main (int argc, char **argv, char **envp);"},{"offset":4195590,"text":"|           0x00400506      55             push rbp"}]
+[{"offset":4195590,"text":"            ; DATA XREF from entry0 @ 0x40042d(r)"},{"offset":4195590,"text":"/ 16: int main (int argc, char **argv, char **envp);"},{"offset":4195590,"text":"|           0x00400506      55             push rbp"}]
 EOF
 RUN
 
@@ -1303,24 +1303,9 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pdJ string - oldshell
-ARGS=-ecfg.newshell=false
-FILE=malloc://128
+NAME=pdJ string
 CMDS=<<EOF
-w Snoo"ping as" usual,
-Cs 30
-pdJ 1
-EOF
-EXPECT=<<EOF
-[{"offset":0,"text":"            0x00000000     .string \"Snoo\\\"ping as\\\" usual,\" ; len=30"}]
-EOF
-RUN
-
-NAME=pdJ string - newshell
-ARGS=-ecfg.newshell=true
-FILE=malloc://128
-CMDS=<<EOF
-w "Snoo\"ping as\" usual,"
+w 'Snoo\"ping as\" usual',
 Cs 30
 pdJ 1
 EOF
@@ -1367,8 +1352,8 @@ pdJ 1 @ 0x080483ec
 EOF
 EXPECT=<<EOF
 [{"offset":134514169,"arrow":134514133,"text":"|       `=< 0x080485f9      72da           if   (((unsigned) var) < 0) goto 0x80485d5"}]
-[{"offset":134513644,"text":"            ; sym.imp.__libc_start_main"},{"offset":134513644,"text":"            ; int __libc_start_main(func main, int argc, char **ubp_av, func init, func fini, func rtld_fini, void *stack_end)"},{"offset":134513644,"text":"            0x080483ec      e873ffffff     134513508,eip,4,esp,-=,esp,=[],eip,="}]
-[{"offset":134513644,"text":"            0x080483ec      e873ffffff     134513508,eip,4,esp,-=,esp,=[],eip,= ; sym.imp.__libc_start_main ; int __libc_start_main(func main, int argc, char **ubp_av, func init, func fini, func rtld_fini, void *stack_end)"}]
+[{"offset":134513644,"text":"            ; sym.imp.__libc_start_main"},{"offset":134513644,"text":"            ; int __libc_start_main(func main, int argc, char **ubp_av, func init, func fini, func rtld_fini, void *stack_end)"},{"offset":134513644,"text":"            0x080483ec      e873ffffff     134513508,eip,4,esp,-=,esp,=[4],eip,="}]
+[{"offset":134513644,"text":"            0x080483ec      e873ffffff     134513508,eip,4,esp,-=,esp,=[4],eip,= ; sym.imp.__libc_start_main ; int __libc_start_main(func main, int argc, char **ubp_av, func init, func fini, func rtld_fini, void *stack_end)"}]
 EOF
 RUN
 

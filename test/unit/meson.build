@@ -21,7 +21,6 @@ if get_option('enable_tests')
     'cmd',
     'cmd_str',
     'cons',
-    'contrbtree',
     'debruijn',
     'debug',
     'debug_session',
@@ -63,7 +62,8 @@ if get_option('enable_tests')
     'uleb128',
     'unum',
     'util',
-    'vector'
+    'vector',
+    'crbtree'
   ]
 
   foreach test : tests

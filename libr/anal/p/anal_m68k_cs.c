@@ -1,8 +1,8 @@
-/* radare2 - LGPL - Copyright 2015-2018 - pancake */
+/* radare2 - LGPL - Copyright 2015-2022 - pancake */
 
 #include <r_asm.h>
 #include <r_lib.h>
-#include <capstone.h>
+#include <capstone/capstone.h>
 
 #ifdef CAPSTONE_M68K_H
 #define CAPSTONE_HAS_M68K 1
@@ -16,7 +16,7 @@
 #endif
 
 #if CAPSTONE_HAS_M68K
-#include <m68k.h>
+#include <capstone/m68k.h>
 // http://www.mrc.uidaho.edu/mrc/people/jff/digital/M68Kir.html
 
 #define OPERAND(x) insn->detail->m68k.operands[x]
@@ -32,17 +32,17 @@ static inline ut64 make_64bits_address(ut64 address) {
 
 static inline void handle_branch_instruction(RAnalOp *op, ut64 addr, cs_m68k *m68k, ut32 type, int index) {
 #if CS_API_MAJOR >= 4
-		if (m68k->operands[index].type == M68K_OP_BR_DISP) {
-			op->type = type;
-			// TODO: disp_size is ignored
-			op->jump = make_64bits_address (addr + m68k->operands[index].br_disp.disp + 2);
-			op->fail = make_64bits_address (addr + op->size);
-		}
-#else
+	if (m68k->operands[index].type == M68K_OP_BR_DISP) {
 		op->type = type;
 		// TODO: disp_size is ignored
 		op->jump = make_64bits_address (addr + m68k->operands[index].br_disp.disp + 2);
 		op->fail = make_64bits_address (addr + op->size);
+	}
+#else
+	op->type = type;
+	// TODO: disp_size is ignored
+	op->jump = make_64bits_address (addr + m68k->operands[index].br_disp.disp + 2);
+	op->fail = make_64bits_address (addr + op->size);
 #endif
 }
 
@@ -167,38 +167,40 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 	static csh handle = 0;
 	static int omode = -1;
 	static int obits = 32;
-	cs_insn* insn;
+	cs_insn* insn = NULL;
 	cs_m68k *m68k;
 	cs_detail *detail;
 
-	int mode = a->big_endian? CS_MODE_BIG_ENDIAN: CS_MODE_LITTLE_ENDIAN;
-
-	//mode |= (a->bits==64)? CS_MODE_64: CS_MODE_32;
-	if (mode != omode || a->bits != obits) {
+	int mode = a->config->big_endian? CS_MODE_BIG_ENDIAN: CS_MODE_LITTLE_ENDIAN;
+	const int bits = a->config->bits;
+	if (mode != omode || bits != obits) {
 		cs_close (&handle);
 		handle = 0;
 		omode = mode;
-		obits = a->bits;
+		obits = bits;
 	}
-// XXX no arch->cpu ?!?! CS_MODE_MICRO, N64
+	const char *cpu = a->config->cpu;
+	// XXX no arch->cpu ?!?! CS_MODE_MICRO, N64
 	// replace this with the asm.features?
-	if (a->cpu && strstr (a->cpu, "68000")) {
-		mode |= CS_MODE_M68K_000;
-	}
-	if (a->cpu && strstr (a->cpu, "68010")) {
-		mode |= CS_MODE_M68K_010;
-	}
-	if (a->cpu && strstr (a->cpu, "68020")) {
-		mode |= CS_MODE_M68K_020;
-	}
-	if (a->cpu && strstr (a->cpu, "68030")) {
-		mode |= CS_MODE_M68K_030;
-	}
-	if (a->cpu && strstr (a->cpu, "68040")) {
-		mode |= CS_MODE_M68K_040;
-	}
-	if (a->cpu && strstr (a->cpu, "68060")) {
-		mode |= CS_MODE_M68K_060;
+	if (R_STR_ISNOTEMPTY (cpu)) {
+		if (strstr (cpu, "68000")) {
+			mode |= CS_MODE_M68K_000;
+		}
+		if (strstr (cpu, "68010")) {
+			mode |= CS_MODE_M68K_010;
+		}
+		if (strstr (cpu, "68020")) {
+			mode |= CS_MODE_M68K_020;
+		}
+		if (strstr (cpu, "68030")) {
+			mode |= CS_MODE_M68K_030;
+		}
+		if (strstr (cpu, "68040")) {
+			mode |= CS_MODE_M68K_040;
+		}
+		if (strstr (cpu, "68060")) {
+			mode |= CS_MODE_M68K_060;
+		}
 	}
 	op->size = 4;
 	if (handle == 0) {
@@ -209,6 +211,30 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 		cs_option (handle, CS_OPT_DETAIL, CS_OPT_ON);
 	}
 	n = cs_disasm (handle, (ut8*)buf, len, addr, 1, &insn);
+	int on = n;
+	if (!insn || !strncmp (insn->mnemonic, "dc.w", 4)) {
+		if (mask & R_ANAL_OP_MASK_DISASM) {
+			op->mnemonic = strdup ("invalid");
+			n = 2;
+		} else {
+			n = -1;
+		}
+		op->type = R_ANAL_OP_TYPE_ILL;
+		op->size = 2;
+		opsize = 2;
+		goto beach;
+	} else if (mask & R_ANAL_OP_MASK_DISASM) {
+		char *str = r_str_newf ("%s%s%s", insn->mnemonic, insn->op_str[0]? " ": "", insn->op_str);
+		if (str) {
+			char *p = r_str_replace (str, "$", "0x", true);
+			if (p) {
+				r_str_replace_char (p, '#', 0);
+				op->mnemonic = p;
+			} else {
+				free (str);
+			}
+		}
+	}
 	if (n < 1 || insn->size < 1) {
 		op->type = R_ANAL_OP_TYPE_ILL;
 		op->size = 2;
@@ -701,7 +727,7 @@ static int analop(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAn
 		op_fillval (op, handle, insn);
 	}
 beach:
-	cs_free (insn, n);
+	cs_free (insn, on);
 	//cs_close (&handle);
 fin:
 	return opsize;
@@ -712,6 +738,7 @@ static bool set_reg_profile(RAnal *anal) {
 		"=PC    pc\n"
 		"=SP    a7\n"
 		"=BP    a6\n"
+		"=R0    a0\n"
 		"=A0    a0\n"
 		"=A1    a1\n"
 		"=A2    a2\n"
@@ -765,12 +792,27 @@ static bool set_reg_profile(RAnal *anal) {
 	return r_reg_set_profile_string (anal->reg, p);
 }
 
+static int archinfo(RAnal *anal, int q) {
+	switch (q) {
+	case R_ANAL_ARCHINFO_ALIGN:
+		return 2;
+	case R_ANAL_ARCHINFO_MAX_OP_SIZE:
+		return 6;
+	case R_ANAL_ARCHINFO_INV_OP_SIZE:
+		return 2;
+	case R_ANAL_ARCHINFO_MIN_OP_SIZE:
+		return 2;
+	}
+	return 2;
+}
+
 RAnalPlugin r_anal_plugin_m68k_cs = {
 	.name = "m68k",
 	.desc = "Capstone M68K analyzer",
 	.license = "BSD",
 	.esil = false,
 	.arch = "m68k",
+	.archinfo = archinfo,
 	.set_reg_profile = &set_reg_profile,
 	.bits = 32,
 	.op = &analop,

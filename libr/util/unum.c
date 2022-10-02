@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2007-2021 - pancake */
+/* radare - LGPL - Copyright 2007-2022 - pancake */
 
 #if __WINDOWS__
 #include <stdlib.h>
@@ -160,8 +160,10 @@ static ut64 r_num_from_binary(const char *str) {
 	int i, j;
 	ut64 ret = 0;
 	for (j = 0, i = strlen (str) - 1; i > 0; i--, j++) {
-		if (str[i] == '1') {
-			ret |= (1 << j);
+		if (str[i] == '_') {
+			j--;
+		} else if (str[i] == '1') {
+			ret |= (ut64) (1ULL << j);
 		} else if (str[i] != '0') {
 			break;
 		}
@@ -178,13 +180,13 @@ R_API ut64 r_num_from_ternary(const char *inp) {
 	int pos = strlen (inp);
 	ut64 fr = 0;
 	for (p = inp; *p ; p++, pos--) {
-		int n012 = 0;
+		ut64 n012 = 0;
 		switch (*p) {
 		case '0':
 		case '1':
 		case '2':
 			n012 = *p - '0';
-			fr += n012 * pow (3, pos - 1);
+			fr += (ut64)(n012 * pow (3, pos - 1));
 			break;
 		}
 	}
@@ -252,7 +254,7 @@ R_API ut64 r_num_get(RNum *num, const char *str) {
 			return (ut64) ((s << 4) + a);
 		}
 	}
-	if (str[0] == '0' && str[1] == 'b') {
+	if (str[0] == '0' && str[1] == 'b') { // XXX this is wrong and causes bugs
 		ret = r_num_from_binary (str + 2);
 	} else if (str[0] == '\'') {
 		ret = str[1] & 0xff;
@@ -513,7 +515,7 @@ R_API ut64 r_num_math(RNum *num, const char *str) {
 			p = group + 1;
 			if (r_str_delta (p, '(', ')') < 0) {
 				char *p2 = strchr (p, '(');
-				if (p2 != NULL) {
+				if (p2) {
 					*p2 = '\0';
 					ret = r_num_op (op, ret, r_num_math_internal (num, p));
 					ret = r_num_op (op, ret, r_num_math (num, p2 + 1));
@@ -785,14 +787,12 @@ R_API ut64 r_num_tail_base(RNum *num, ut64 addr, ut64 off) {
 R_API ut64 r_num_tail(RNum *num, ut64 addr, const char *hex) {
 	ut64 mask = 0LL;
 	ut64 n = 0;
-	char *p;
-	int i;
 
 	while (*hex && (*hex == ' ' || *hex == '.')) {
 		hex++;
 	}
-	i = strlen (hex) * 4;
-	p = malloc (strlen (hex) + 10);
+	int i = strlen (hex) * 4;
+	char *p = malloc (strlen (hex) + 10);
 	if (p) {
 		strcpy (p, "0x");
 		strcpy (p + 2, hex);

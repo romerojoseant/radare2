@@ -45,7 +45,7 @@ R_API RSearchKeyword* r_search_keyword_new(const ut8 *kwbuf, int kwlen, const ut
 	return kw;
 }
 
-R_API void r_search_keyword_free (RSearchKeyword *kw) {
+R_API void r_search_keyword_free(RSearchKeyword *kw) {
 	if (!kw) {
 		return;
 	}
@@ -103,7 +103,7 @@ R_API RSearchKeyword* r_search_keyword_new_wide(const char *kwbuf, const char *b
 		RRune ch;
 		int num_utf8_bytes = r_utf8_decode ((const ut8 *)p2, kwbuf + len - p2, &ch);
 		if (num_utf8_bytes < 1) {
-			eprintf ("Warning: Malformed UTF8 at pos %td\n", p2 - kwbuf);
+			eprintf ("Warning: Malformed UTF8 at pos %d\n", (int)(p2 - kwbuf));
 			p[0] = *p2;
 			p[1] = 0;
 			p2++;
@@ -172,11 +172,11 @@ R_API RSearchKeyword* r_search_keyword_new_hex(const char *kwstr, const char *bm
 R_API RSearchKeyword* r_search_keyword_new_hexmask(const char *kwstr, const char *data) {
 	RSearchKeyword *ks = NULL;
 	ut8 *kw, *bm;
-	if (kwstr != NULL) {
+	if (kwstr) {
 		int len = strlen (kwstr);
 		kw = malloc (len + 4);
 		bm = malloc (len + 4);
-		if (kw != NULL && bm != NULL) {
+		if (kw && bm) {
 			len = r_hex_str2binmask (kwstr, (ut8*)kw, (ut8*)bm);
 			if (len < 0) {
 				len = -len - 1;
@@ -192,7 +192,7 @@ R_API RSearchKeyword* r_search_keyword_new_hexmask(const char *kwstr, const char
 }
 
 /* Validate a regexp in the canonical format /<regexp>/<options> */
-R_API RSearchKeyword *r_search_keyword_new_regexp (const char *str, const char *data) {
+R_API RSearchKeyword *r_search_keyword_new_regexp(const char *str, const char *data) {
 	RSearchKeyword *kw;
 	int i = 0, start, length;
 

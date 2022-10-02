@@ -1028,7 +1028,7 @@ static int
 grub_hfs_dir_hook (struct grub_hfs_record *rec, void *closure)
 {
   struct grub_hfs_dir_closure *c = closure;
-  char fname[32] = { 0 };
+  char fname[32] = {0};
   char *filetype = rec->data;
   struct grub_hfs_catalog_key *ckey = rec->key;
   struct grub_dirhook_info info;
@@ -1160,9 +1160,7 @@ grub_hfs_uuid (grub_device_t device, char **uuid)
   data = grub_hfs_mount (device->disk);
   if (data && data->sblock.num_serial != 0)
     {
-      *uuid = grub_xasprintf ("%016"PFMT64x,
-			     (unsigned long long)
-			     grub_be_to_cpu64 (data->sblock.num_serial));
+      *uuid = grub_xasprintf ("%016"PFMT64x, (ut64) grub_be_to_cpu64 (data->sblock.num_serial));
     }
   else
     *uuid = NULL;

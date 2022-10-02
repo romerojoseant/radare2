@@ -7,10 +7,10 @@
 #include "mach0/dyldcache.h"
 #include "mach0/mach0.h"
 
-static RBinXtrData * extract(RBin *bin, int idx);
-static RList * extractall(RBin *bin);
-static RBinXtrData * oneshot(RBin *bin, const ut8 *buf, ut64 size, int idx);
-static RList * oneshotall(RBin *bin, const ut8 *buf, ut64 size);
+static RBinXtrData *extract(RBin *bin, int idx);
+static RList *extractall(RBin *bin);
+static RBinXtrData *oneshot(RBin *bin, const ut8 *buf, ut64 size, int idx);
+static RList *oneshotall(RBin *bin, const ut8 *buf, ut64 size);
 
 static bool check_buffer(RBinFile *bf, RBuffer *buf) {
 	ut8 b[4] = {0};
@@ -39,21 +39,20 @@ static bool load(RBin *bin) {
 	return bin->cur->xtr_obj? true : false;
 }
 
-static RList * extractall(RBin *bin) {
-	RList *result = NULL;
-	int nlib, i = 0;
-	RBinXtrData *data = extract (bin, i);
+static RList *extractall(RBin *bin) {
+	RBinXtrData *data = extract (bin, 0);
 	if (!data) {
-		return result;
+		return NULL;
 	}
 	// XXX - how do we validate a valid nlib?
-	nlib = data->file_count;
-	result = r_list_newf (r_bin_xtrdata_free);
+	int nlib = data->file_count;
+	RList *result = r_list_newf (r_bin_xtrdata_free);
 	if (!result) {
 		r_bin_xtrdata_free (data);
 		return NULL;
 	}
 	r_list_append (result, data);
+	int i = 0;
 	for (i = 1; data && i < nlib; i++) {
 		data = extract (bin, i);
 		r_list_append (result, data);
@@ -61,7 +60,7 @@ static RList * extractall(RBin *bin) {
 	return result;
 }
 
-static inline void fill_metadata_info_from_hdr(RBinXtrMetadata *meta, struct MACH0_ (mach_header) *hdr) {
+static inline void fill_metadata_info_from_hdr(RBinXtrMetadata *meta, struct MACH0_(mach_header) *hdr) {
 	meta->arch = strdup (MACH0_(get_cputype_from_hdr) (hdr));
 	meta->bits = MACH0_(get_bits_from_hdr) (hdr);
 	meta->machine = MACH0_(get_cpusubtype_from_hdr) (hdr);
@@ -142,7 +141,7 @@ static RBinXtrData *oneshot(RBin *bin, const ut8* buf, ut64 size, int idx) {
 	return res;
 }
 
-static RList * oneshotall(RBin *bin, const ut8* buf, ut64 size) {
+static RList *oneshotall(RBin *bin, const ut8* buf, ut64 size) {
 	RBinXtrData *data = NULL;
 	RList *res = NULL;
 	int nlib, i = 0;

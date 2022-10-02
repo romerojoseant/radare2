@@ -74,8 +74,7 @@ static int op_thumb(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 	if (ins == 0xbf) {
 		// TODO: add support for more NOP instructions
 		op->type = R_ANAL_OP_TYPE_NOP;
-	} else if (((op_code = ((ins & B4 (B1111, B1000, 0, 0)) >> 11)) >= 12 &&
-	            op_code <= 17)) {
+	} else if (((op_code = ((ins & B4 (B1111, B1000, 0, 0)) >> 11)) >= 12 && op_code <= 17)) {
 		if (op_code % 2) {
 			op->type = R_ANAL_OP_TYPE_LOAD;
 		} else {
@@ -100,13 +99,11 @@ static int op_thumb(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 		op->type = R_ANAL_OP_TYPE_JMP;
 		op->jump = addr + 4 + (delta << 1);
 		op->fail = addr + 4;
-	} else if ((ins & B4 (B1111, B1111, B1000, 0)) ==
-	           B4 (B0100, B0111, B1000, 0)) {
+	} else if ((ins & B4 (B1111, B1111, B1000, 0)) == B4 (B0100, B0111, B1000, 0)) {
 		// BLX
 		op->type = R_ANAL_OP_TYPE_UCALL;
 		op->fail = addr + 4;
-	} else if ((ins & B4 (B1111, B1111, B1000, 0)) ==
-	           B4 (B0100, B0111, 0, 0)) {
+	} else if ((ins & B4 (B1111, B1111, B1000, 0)) == B4 (B0100, B0111, 0, 0)) {
 		// BX
 		op->type = R_ANAL_OP_TYPE_UJMP;
 		op->fail = addr + 4;
@@ -182,7 +179,7 @@ static int arm_op32(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 	op->addr = addr;
 	op->type = R_ANAL_OP_TYPE_UNK;
 
-	if (anal->big_endian) {
+	if (anal->config->big_endian) {
 		b = data = ndata;
 		ut8 tmp = data[3];
 		ndata[0] = data[3];
@@ -190,7 +187,7 @@ static int arm_op32(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 		ndata[2] = data[1];
 		ndata[3] = tmp;
 	}
-	if (anal->bits == 16) {
+	if (anal->config->bits == 16) {
 		arm_free (arminsn);
 		return op_thumb (anal, op, addr, data, len);
 	}
@@ -271,10 +268,9 @@ static int arm_op32(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 		op->type = R_ANAL_OP_TYPE_SUB;
 		op->stackop = R_ANAL_STACK_INC;
 		op->val = -b[0];
-	} else if ((code[i] == 0x1eff2fe1) ||
-	           (code[i] == 0xe12fff1e)) {  // bx lr
+	} else if (code[i] == 0x1eff2fe1 || code[i] == 0xe12fff1e) {  // bx lr
 		op->type = R_ANAL_OP_TYPE_RET;
-	} else if ((code[i] & ARM_DTX_LOAD)) {  // IS_LOAD(code[i])) {
+	} else if (code[i] & ARM_DTX_LOAD) {  // IS_LOAD(code[i])) {
 		ut32 ptr = 0;
 		op->type = R_ANAL_OP_TYPE_MOV;
 		if (b[2] == 0x1b) {
@@ -285,7 +281,7 @@ static int arm_op32(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int le
 		} else {
 			// ut32 oaddr = addr+8+b[0];
 			// XXX TODO ret = radare_read_at(oaddr, (ut8*)&ptr, 4);
-			if (anal->bits == 32) {
+			if (anal->config->bits == 32) {
 				b = (ut8 *) &ptr;
 				op->ptr = b[0] + (b[1] << 8) + (b[2] << 16) + (b[3] << 24);
 				// XXX data_xrefs_add(oaddr, op->ptr, 1);
@@ -403,7 +399,7 @@ static int arm_op64(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *d, int len) 
 }
 
 static int arm_op(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *data, int len, RAnalOpMask mask) {
-	if (anal->bits == 64) {
+	if (anal->config->bits == 64) {
 		return arm_op64 (anal, op, addr, data, len);
 	}
 	return arm_op32 (anal, op, addr, data, len);
@@ -446,7 +442,7 @@ static bool set_reg_profile(RAnal *anal) {
 
 static int archinfo(RAnal *anal, int q) {
 	if (q == R_ANAL_ARCHINFO_ALIGN) {
-		if (anal && anal->bits == 16) {
+		if (anal && anal->config->bits == 16) {
 			return 2;
 		}
 		return 4;
@@ -455,7 +451,7 @@ static int archinfo(RAnal *anal, int q) {
 		return 4;
 	}
 	if (q == R_ANAL_ARCHINFO_MIN_OP_SIZE) {
-		if (anal && anal->bits == 16) {
+		if (anal && anal->config->bits == 16) {
 			return 2;
 		}
 		return 4;

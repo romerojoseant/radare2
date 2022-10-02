@@ -7,10 +7,10 @@
 #include "bfvm.c"
 
 typedef struct {
-        int desc;
-        ut8 *buf;
-        ut32 size;
-        BfvmCPU *bfvm;
+	int desc;
+	ut8 *buf;
+	ut32 size;
+	BfvmCPU *bfvm;
 } RIOBdescbg;
 
 struct bfvm_regs {
@@ -154,7 +154,7 @@ static char *r_debug_bf_reg_profile(RDebug *dbg) {
 	);
 }
 
-static int r_debug_bf_breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
+static int r_debug_bf_breakpoint(struct r_bp_t *bp, RBreakpointItem *b, bool set) {
 	//r_io_system (dbg->iob.io, "db");
 	return false;
 }

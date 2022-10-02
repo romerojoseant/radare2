@@ -6,12 +6,12 @@
 #include <r_bin.h>
 #include "omf/omf.h"
 
-static bool load_buffer (RBinFile *bf, void **bin_obj, RBuffer *b, ut64 loadaddr, Sdb *sdb) {
+static bool load_buffer(RBinFile *bf, void **bin_obj, RBuffer *b, ut64 loadaddr, Sdb *sdb) {
 	ut64 size;
 	const ut8 *buf = r_buf_data (b, &size);
 	r_return_val_if_fail (buf, false);
 	*bin_obj = r_bin_internal_omf_load (buf, size);
-	return *bin_obj != NULL;
+	return *bin_obj;
 }
 
 static void destroy(RBinFile *bf) {

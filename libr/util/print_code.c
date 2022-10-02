@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2007-2020 - pancake */
+/* radare - LGPL - Copyright 2007-2022 - pancake */
 
 #include <r_util.h>
 #include <r_util/r_print.h>
@@ -102,22 +102,60 @@ R_API void r_print_code(RPrint *p, ut64 addr, const ut8 *buf, int len, char lang
 	}
 	switch (lang) {
 	case '*':
-		p->cb_printf ("wx ");
+		p->cb_printf ("wx+");
 		for (i = 0; !r_print_is_interrupted () && i < len; i++) {
-			if (i && !(i % 16)) {
-				p->cb_printf (";s+16\nwx ");
+			if (i && !(i % 32)) {
+				p->cb_printf ("\nwx+");
 			}
 			p->cb_printf ("%02x", buf[i]);
 		}
-		if (i && !(i % 16)) {
-			p->cb_printf (";s+16\n");
-		} else {
-			p->cb_printf (";s+%d\n", (i % 16));
-		}
-		p->cb_printf ("s-%d\n", len);
+		p->cb_printf ("\ns-%d\n", len);
 		break;
 	case 'A': // "pcA"
 		/* implemented in core because of disasm :( */
+		break;
+	case 'c': // "pcc"
+		{
+			int col = 0;
+			const int max_cols = 60;
+
+			p->cb_printf ("const char cstr[%d] = \"", len);
+			for (i = 0; !r_print_is_interrupted () && i < len; i++) {
+				if (col == 0 || col > max_cols) {
+					p->cb_printf ("\"\\\n  \"");
+					col = 0;
+				}
+				ut8 ch = buf[i];
+				switch (ch) {
+				case '\\':
+					p->cb_printf ("\\\\");
+					break;
+				case '\t':
+					p->cb_printf ("\\t");
+					break;
+				case '\r':
+					p->cb_printf ("\\r");
+					break;
+				case '\n':
+					p->cb_printf ("\\n");
+					break;
+				default:
+					if (IS_PRINTABLE (buf[i])) {
+						if (buf[i] == '"') {
+							p->cb_printf ("\\\"");
+						} else {
+							p->cb_printf ("%c", buf[i]);
+						}
+					} else {
+						p->cb_printf ("\\x%02x", buf[i]);
+						col += 3;
+					}
+					break;
+				}
+				col += 1;
+			}
+			p->cb_printf ("\";\n");
+		}
 		break;
 	case 'a': // "pca"
 		p->cb_printf ("shellcode:");
@@ -210,7 +248,7 @@ R_API void r_print_code(RPrint *p, ut64 addr, const ut8 *buf, int len, char lang
 		p->cb_printf ("};\n");
 		break;
 	case 'V': // "pcV" // vlang.io
-		p->cb_printf ("data := [ byte(%d),\n  ", buf[0]);
+		p->cb_printf ("const data = [ byte(%d),\n  ", buf[0]);
 		for (i = 1; !r_print_is_interrupted () && i < len; i++) {
 			r_print_cursor (p, i, 1, 1);
 			p->cb_printf ("%d%s", buf[i], (i + 1 < len)? ", ": "");

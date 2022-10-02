@@ -3,9 +3,9 @@
 #include <r_asm.h>
 #include <r_lib.h>
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #if CS_API_MAJOR >= 5
-#include <riscv.h>
+#include <capstone/riscv.h>
 
 // http://www.mrc.uidaho.edu/mrc/people/jff/digital/RISCVir.html
 
@@ -193,13 +193,13 @@ static int analop_esil(RAnal *a, RAnalOp *op, ut64 addr, const ut8 *buf, int len
 			*str[i] = 0;
 			ARG (i);
 		}
+		switch (insn->id) {
+		//case RISCV_INS_NOP:
+		//	r_strbuf_setf (&op->esil, ",");
+		//	break;
+		}
 	}
 
-	switch (insn->id) {
-	//case RISCV_INS_NOP:
-	//	r_strbuf_setf (&op->esil, ",");
-	//	break;
-	}
 	return 0;
 }
 
@@ -298,25 +298,25 @@ capstone bug
 }
 
 static void set_opdir(RAnalOp *op) {
-        switch (op->type & R_ANAL_OP_TYPE_MASK) {
-        case R_ANAL_OP_TYPE_LOAD:
-                op->direction = R_ANAL_OP_DIR_READ;
-                break;
-        case R_ANAL_OP_TYPE_STORE:
-                op->direction = R_ANAL_OP_DIR_WRITE;
-                break;
-        case R_ANAL_OP_TYPE_LEA:
-                op->direction = R_ANAL_OP_DIR_REF;
-                break;
-        case R_ANAL_OP_TYPE_CALL:
-        case R_ANAL_OP_TYPE_JMP:
-        case R_ANAL_OP_TYPE_UJMP:
-        case R_ANAL_OP_TYPE_UCALL:
-                op->direction = R_ANAL_OP_DIR_EXEC;
-                break;
-        default:
-                break;
-        }
+	switch (op->type & R_ANAL_OP_TYPE_MASK) {
+	case R_ANAL_OP_TYPE_LOAD:
+		op->direction = R_ANAL_OP_DIR_READ;
+		break;
+	case R_ANAL_OP_TYPE_STORE:
+		op->direction = R_ANAL_OP_DIR_WRITE;
+		break;
+	case R_ANAL_OP_TYPE_LEA:
+		op->direction = R_ANAL_OP_DIR_REF;
+		break;
+	case R_ANAL_OP_TYPE_CALL:
+	case R_ANAL_OP_TYPE_JMP:
+	case R_ANAL_OP_TYPE_UJMP:
+	case R_ANAL_OP_TYPE_UCALL:
+		op->direction = R_ANAL_OP_DIR_EXEC;
+		break;
+	default:
+		break;
+	}
 }
 
 static int analop(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *buf, int len, RAnalOpMask mask) {
@@ -325,12 +325,16 @@ static int analop(RAnal *anal, RAnalOp *op, ut64 addr, const ut8 *buf, int len, 
 	static int omode = -1;
 	static int obits = 32;
 	cs_insn* insn;
-	int mode = (anal->bits==64)? CS_MODE_RISCV64: CS_MODE_RISCV32;
-	if (mode != omode || anal->bits != obits) {
+	const int bits = anal->config->bits;
+	int mode = (bits == 64)? CS_MODE_RISCV64: CS_MODE_RISCV32;
+	if (mode != omode || bits != obits) {
 		cs_close (&hndl);
 		hndl = 0;
 		omode = mode;
-		obits = anal->bits;
+		obits = bits;
+	}
+	if (!op) {
+		return -1;
 	}
 // XXX no arch->cpu ?!?! CS_MODE_MICRO, N64
 	op->addr = addr;
@@ -399,7 +403,7 @@ fin:
 
 static char *get_reg_profile(RAnal *anal) {
 	const char *p = NULL;
-	switch (anal->bits) {
+	switch (anal->config->bits) {
 	case 32: p =
 		"=PC	pc\n"
 		"=SP	sp\n" // ABI: stack pointer
@@ -584,7 +588,7 @@ static int archinfo(RAnal *anal, int q) {
 	case R_ANAL_ARCHINFO_MAX_OP_SIZE:
 		return 4;
 	case R_ANAL_ARCHINFO_MIN_OP_SIZE:
-		if (anal->bits == 64) {
+		if (anal->config->bits == 64) {
 			return 4;
 		}
 		return 2;

@@ -1,4 +1,4 @@
-/* sdb - MIT - Copyright 2011-2016 - pancake */
+/* sdb - MIT - Copyright 2011-2022 - pancake */
 
 #include "sdb.h"
 
@@ -7,8 +7,8 @@ SDB_API void sdb_ns_lock(Sdb *s, int lock, int depth) {
 	SdbNs *ns;
 	s->ns_lock = lock;
 	if (depth) { // handles -1 as infinite
-		ls_foreach (s->ns, it, ns) {
-			sdb_ns_lock (ns->sdb, lock, depth-1);
+		ls_foreach_cast (s->ns, it, SdbNs*, ns) {
+			sdb_ns_lock (ns->sdb, lock, depth - 1);
 		}
 	}
 }
@@ -16,10 +16,11 @@ SDB_API void sdb_ns_lock(Sdb *s, int lock, int depth) {
 static int in_list(SdbList *list, void *item) {
 	SdbNs *ns;
 	SdbListIter *it;
-	if (list && item)
-	ls_foreach (list, it, ns) {
-		if (item == ns) {
-			return 1;
+	if (list && item) {
+		ls_foreach_cast (list, it, SdbNs*, ns) {
+			if (item == ns) {
+				return 1;
+			}
 		}
 	}
 	return 0;
@@ -38,7 +39,7 @@ static void ns_free(Sdb *s, SdbList *list) {
 		return;
 	}
 	ls_append (list, s);
-	ls_foreach (s->ns, it, ns) {
+	ls_foreach_cast (s->ns, it, SdbNs*, ns) {
 		deleted = 0;
 		next.n = it->n;
 		if (!in_list (list, ns)) {
@@ -98,7 +99,7 @@ static SdbNs *sdb_ns_new (Sdb *s, const char *name, ut32 hash) {
 	} else {
 		dir[0] = 0;
 	}
-	ns = malloc (sizeof (SdbNs));
+	ns = (SdbNs *)malloc (sizeof (SdbNs));
 	if (!ns) {
 		return NULL;
 	}
@@ -126,11 +127,11 @@ static SdbNs *sdb_ns_new (Sdb *s, const char *name, ut32 hash) {
 	return ns;
 }
 
-SDB_API bool sdb_ns_unset (Sdb *s, const char *name, Sdb *r) {
+SDB_API bool sdb_ns_unset(Sdb *s, const char *name, Sdb *r) {
 	SdbNs *ns;
 	SdbListIter *it;
 	if (s && (name || r)) {
-		ls_foreach (s->ns, it, ns) {
+		ls_foreach_cast (s->ns, it, SdbNs*, ns) {
 			if (name && (!strcmp (name, ns->name))) {
 				ls_delete (s->ns, it);
 				return true;
@@ -151,7 +152,7 @@ SDB_API int sdb_ns_set(Sdb *s, const char *name, Sdb *r) {
 	if (!s || !r || !name) {
 		return 0;
 	}
-	ls_foreach (s->ns, it, ns) {
+	ls_foreach_cast (s->ns, it, SdbNs*, ns) {
 		if (ns->hash == hash) {
 			if (ns->sdb == r) {
 				return 0;
@@ -166,7 +167,14 @@ SDB_API int sdb_ns_set(Sdb *s, const char *name, Sdb *r) {
 		return 0;
 	}
 	ns = R_NEW (SdbNs);
+	if (!ns) {
+		return 0;
+	}
 	ns->name = strdup (name);
+	if (!ns->name) {
+		free (ns);
+		return 0;
+	}
 	ns->hash = hash;
 	ns->sdb = r;
 	r->refs++;
@@ -182,7 +190,7 @@ SDB_API Sdb *sdb_ns(Sdb *s, const char *name, int create) {
 		return NULL;
 	}
 	hash = sdb_hash (name);
-	ls_foreach (s->ns, it, ns) {
+	ls_foreach_cast (s->ns, it, SdbNs*, ns) {
 		if (ns->hash == hash) {
 			return ns->sdb;
 		}
@@ -205,8 +213,9 @@ SDB_API Sdb *sdb_ns_path(Sdb *s, const char *path, int create) {
 	char *ptr, *str;
 	char *slash;
 
-	if (!s || !path || !*path)
+	if (!s || !path || !*path) {
 		return s;
+	}
 	ptr = str = strdup (path);
 	do {
 		slash = strchr (ptr, '/');
@@ -221,10 +230,10 @@ SDB_API Sdb *sdb_ns_path(Sdb *s, const char *path, int create) {
 	return s;
 }
 
-static void ns_sync (Sdb *s, SdbList *list) {
+static void ns_sync(Sdb *s, SdbList *list) {
 	SdbNs *ns;
 	SdbListIter *it;
-	ls_foreach (s->ns, it, ns) {
+	ls_foreach_cast (s->ns, it, SdbNs*, ns) {
 		if (in_list (list, ns)) {
 			continue;
 		}
@@ -235,7 +244,7 @@ static void ns_sync (Sdb *s, SdbList *list) {
 	sdb_sync (s);
 }
 
-SDB_API void sdb_ns_sync (Sdb *s) {
+SDB_API void sdb_ns_sync(Sdb *s) {
 	SdbList *list = ls_new ();
 	ns_sync (s, list);
 	list->free = NULL;

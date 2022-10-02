@@ -32,22 +32,22 @@ static libqnxr_t *desc = NULL;
 static ut8 *reg_buf = NULL;
 static int buf_size = 0;
 
-static void pidlist_cb (void *ctx, pid_t pid, char *name) {
+static void pidlist_cb(void *ctx, pid_t pid, char *name) {
 	RList *list = ctx;
 	r_list_append (list, __r_debug_pid_new (name, pid, 's', 0));
 }
 
-static bool r_debug_qnx_select (RDebug *dbg, int pid, int tid) {
+static bool r_debug_qnx_select(RDebug *dbg, int pid, int tid) {
 	return qnxr_select (desc, pid, tid);
 }
 
-static RList *r_debug_qnx_tids (RDebug *dbg, int pid) {
+static RList *r_debug_qnx_tids(RDebug *dbg, int pid) {
 	eprintf ("%s: TODO: Threads\n", __func__);
 	return NULL;
 }
 
 
-static RList *r_debug_qnx_pids (RDebug *dbg, int pid) {
+static RList *r_debug_qnx_pids(RDebug *dbg, int pid) {
 	RList *list = r_list_new ();
 	if (!list) {
 		return NULL;
@@ -113,7 +113,7 @@ static RList *r_debug_qnx_map_get(RDebug *dbg) {
 
 static int r_debug_qnx_reg_write(RDebug *dbg, int type, const ut8 *buf, int size) {
 	int buflen = 0;
-	int bits = dbg->anal->bits;
+	int bits = dbg->anal->config->bits;
 	const char *pcname = r_reg_get_name (dbg->anal->reg, R_REG_NAME_PC);
 	RRegItem *reg = r_reg_get (dbg->anal->reg, pcname, 0);
 	if (!reg_buf) {
@@ -121,7 +121,7 @@ static int r_debug_qnx_reg_write(RDebug *dbg, int type, const ut8 *buf, int size
 		return -1;
 	}
 	if (reg) {
-		if (dbg->anal->bits != reg->size) {
+		if (bits != reg->size) {
 			bits = reg->size;
 		}
 	}
@@ -186,7 +186,7 @@ static bool r_debug_qnx_attach(RDebug *dbg, int pid) {
 		if (!strcmp ("qnx", d->plugin->name)) {
 			RIOQnx *g = d->data;
 			int arch = r_sys_arch_id (dbg->arch);
-			int bits = dbg->anal->bits;
+			int bits = dbg->anal->config->bits;
 			if ((desc = &g->desc)) {
 				switch (arch) {
 				case R_SYS_ARCH_X86:
@@ -220,15 +220,15 @@ static bool r_debug_qnx_attach(RDebug *dbg, int pid) {
 	return true;
 }
 
-static bool r_debug_qnx_detach (RDebug *dbg, int pid) {
+static bool r_debug_qnx_detach(RDebug *dbg, int pid) {
 	qnxr_disconnect (desc);
 	free (reg_buf);
 	return true;
 }
 
-static const char *r_debug_qnx_reg_profile (RDebug *dbg) {
+static const char *r_debug_qnx_reg_profile(RDebug *dbg) {
 	int arch = r_sys_arch_id (dbg->arch);
-	int bits = dbg->anal->bits;
+	int bits = dbg->anal->config->bits;
 	switch (arch) {
 	case R_SYS_ARCH_X86:
 		return strdup (
@@ -326,7 +326,7 @@ static const char *r_debug_qnx_reg_profile (RDebug *dbg) {
 	return NULL;
 }
 
-static int r_debug_qnx_breakpoint (RBreakpoint *bp, RBreakpointItem *b, bool set) {
+static int r_debug_qnx_breakpoint(RBreakpoint *bp, RBreakpointItem *b, bool set) {
 	if (!b) {
 		return false;
 	}

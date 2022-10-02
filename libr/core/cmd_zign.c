@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2009-2021 - pancake, nibble */
+/* radare - LGPL - Copyright 2009-2022 - pancake, nibble */
 
 #include <r_core.h>
 #include <r_anal.h>
@@ -48,6 +48,7 @@ static const char *help_msg_z_slash[] = {
 static const char *help_msg_za[] = {
 	"Usage:", "za[fFM?] [args] ", "# Add zignature",
 	"za ", "zigname type params", "add zignature",
+	"zac ", "", "Compute collisions between signatures",
 	"zaf ", "[fcnname] [zigname]", "create zignature for function",
 	"zaF ", "", "generate zignatures for all functions",
 	"zaM ", "", "Same as zaF but merge signatures of same name",
@@ -116,63 +117,6 @@ static bool addGraphZign(RCore *core, const char *name, RList *args) {
 	return r_sign_add_graph (core->anal, name, graph);
 }
 
-static bool addBytesZign(RCore *core, const char *name, int type, RList *args) {
-	ut8 *mask = NULL, *bytes = NULL, *sep = NULL;
-	int size = 0;
-	bool retval = true;
-
-	if (r_list_length (args) != 1) {
-		eprintf ("error: invalid syntax\n");
-		return false;
-	}
-
-	const char *hexbytes = (const char *)r_list_get_top (args);
-	if ((sep = (ut8 *)strchr (hexbytes, ':'))) {
-		size_t blen = sep - (ut8 *)hexbytes;
-		sep++;
-		if (!blen || (blen & 1) || strlen ((char *)sep) != blen) {
-			eprintf ("error: cannot parse hexpairs\n");
-			return false;
-		}
-		bytes = calloc (1, blen + 1);
-		mask = calloc (1, blen + 1);
-		memcpy (bytes, hexbytes, blen);
-		memcpy (mask, sep, blen);
-		size = r_hex_str2bin ((char*) bytes, bytes);
-		if (size != blen / 2 || r_hex_str2bin ((char*)mask, mask) != size) {
-			eprintf ("error: cannot parse hexpairs\n");
-			retval = false;
-			goto out;
-		}
-	} else {
-		size_t blen = strlen (hexbytes) + 4;
-		bytes = malloc (blen);
-		mask = malloc (blen);
-
-		size = r_hex_str2binmask (hexbytes, bytes, mask);
-		if (size <= 0) {
-			eprintf ("error: cannot parse hexpairs\n");
-			retval = false;
-			goto out;
-		}
-	}
-
-	switch (type) {
-	case R_SIGN_BYTES:
-		retval = r_sign_add_bytes (core->anal, name, size, bytes, mask);
-		break;
-	case R_SIGN_ANAL:
-		retval = r_sign_add_anal (core->anal, name, size, bytes, 0);
-		break;
-	}
-
-out:
-	free (bytes);
-	free (mask);
-
-	return retval;
-}
-
 static inline bool za_add(RCore *core, const char *input) {
 	char *args = r_str_trim_dup (input + 1);
 	if (!args) {
@@ -194,9 +138,10 @@ static inline bool za_add(RCore *core, const char *input) {
 	bool ret = false;
 	switch (t) {
 	case R_SIGN_BYTES:
+		ret = r_sign_add_bytes (core->anal, name, sig);
+		break;
 	case R_SIGN_ANAL:
-		lst = r_str_split_list (sig, " ", 0);
-		ret = addBytesZign (core, name, t, lst);
+		ret = r_sign_add_anal (core->anal, name, sig);
 		break;
 	case R_SIGN_GRAPH:
 		lst = r_str_split_list (sig, " ", 0);
@@ -226,8 +171,7 @@ static inline bool za_add(RCore *core, const char *input) {
 		r_sign_add_xrefs (core->anal, name, lst);
 		break;
 	case R_SIGN_VARS:
-		lst = r_str_split_list (sig, " ", 0);
-		r_sign_add_vars (core->anal, name, lst);
+		r_sign_add_vars (core->anal, name, sig);
 		break;
 	case R_SIGN_BBHASH:
 		ret = r_sign_add_hash (core->anal, name, t, sig, strlen (sig));
@@ -270,7 +214,7 @@ static int cmdAdd(void *data, const char *input) {
 
 			free (args);
 			if (!fcni) {
-				eprintf ("Could not find function");
+				eprintf ("Could not find function\n");
 				return false;
 			}
 		}
@@ -484,7 +428,7 @@ static void apply_name(RCore *core, RAnalFunction *fcn, RSignItem *it, bool rad)
 	r_return_if_fail (core && fcn && it && it->name);
 	const char *name = it->realname? it->realname: it->name;
 	if (rad) {
-		char *tmp = r_name_filter2 (name);
+		char *tmp = r_name_filter_dup (name);
 		if (tmp) {
 			r_cons_printf ("\"afn %s @ 0x%08" PFMT64x "\"\n", tmp, fcn->addr);
 			free (tmp);
@@ -506,7 +450,7 @@ static void apply_flag(RCore *core, RSignItem *it, ut64 addr, int size, int coun
 	char *name = r_str_newf ("%s.%s.%s_%d", zign_prefix, prefix, it->name, count);
 	if (name) {
 		if (rad) {
-			char *tmp = r_name_filter2 (name);
+			char *tmp = r_name_filter_dup (name);
 			if (tmp) {
 				r_cons_printf ("f %s %d @ 0x%08" PFMT64x "\n", tmp, size, addr);
 				free (tmp);
@@ -522,8 +466,7 @@ static int searchBytesHitCB(RSignItem *it, RSearchKeyword *kw, ut64 addr, void *
 	struct ctxSearchCB *ctx = (struct ctxSearchCB *)user;
 	RAnalFunction *fcn = r_anal_get_fcn_in (ctx->core->anal, addr, 0);
 	if (!fcn) {
-		RCore *c = ctx->core;
-		r_core_af (c, c->offset, NULL, false);
+		r_core_af (ctx->core, addr, NULL, false);
 		fcn = r_anal_get_fcn_in (ctx->core->anal, addr, 0);
 		ctx->newfuncs++;
 		ctx->count++;
@@ -536,6 +479,9 @@ static int searchBytesHitCB(RSignItem *it, RSearchKeyword *kw, ut64 addr, void *
 			if (it->types && (tmp = r_str_newf ("%s;", it->types))) { // apply types
 				r_anal_str_to_fcn (ctx->core->anal, fcn, tmp);
 				free (tmp);
+			}
+			if (it->vars) {
+				r_anal_function_set_var_prot (fcn, it->vars);
 			}
 		}
 		ctx->bytes_count++;
@@ -560,7 +506,7 @@ static int fcnMatchCB(RSignItem *it, RAnalFunction *fcn, RSignType *types, void 
 		switch (t) {
 		case R_SIGN_BYTES:
 			ctx->bytes_count++;
-			prefix = "bytes";
+			prefix = "bytes_func";
 			break;
 		case R_SIGN_GRAPH:
 			prefix = "graph";
@@ -608,6 +554,9 @@ static int fcnMatchCB(RSignItem *it, RAnalFunction *fcn, RSignType *types, void 
 		if (it->types && (tmp = r_str_newf ("%s;", it->types))) { // apply types
 			r_anal_str_to_fcn (ctx->core->anal, fcn, tmp);
 			free (tmp);
+		}
+		if (it->vars) {
+			r_anal_function_set_var_prot (fcn, it->vars);
 		}
 	}
 	return 1;
@@ -784,21 +733,37 @@ static bool search(RCore *core, bool rad, bool only_func) {
 	return ctx.count > 0? true: false;
 }
 
-static void print_possible_matches(RList *list) {
+static void print_possible_matches(RList *list, bool json, RCore *core) {
 	RListIter *itr;
 	RSignCloseMatch *row;
-	r_list_foreach (list, itr, row) {
-		// total score
-		if (row->bscore > 0.0 && row->gscore > 0.0) {
-			r_cons_printf ("%02.5lf  ", row->score);
+	if (json) {
+		PJ *pj = core->anal->coreb.pjWithEncoding (core);
+		pj_a (pj);
+		r_list_foreach (list, itr, row) {
+			pj_o (pj);
+			pj_ks (pj, "name", row->item->name);
+			pj_kd (pj, "similarity", row->score);
+			pj_kd (pj, "byte similarity", row->bscore);
+			pj_kd (pj, "graph similarity", row->gscore);
+			pj_end (pj);
 		}
-		if (row->bscore > 0.0) {
-			r_cons_printf ("%02.5lf B  ", row->bscore);
+		pj_end (pj);
+		r_cons_printf ("%s\n", pj_string (pj));
+		pj_free (pj);
+	} else {
+		r_list_foreach (list, itr, row) {
+			// total score
+			if (row->bscore > 0.0 && row->gscore > 0.0) {
+				r_cons_printf ("%02.5lf  ", row->score);
+			}
+			if (row->bscore > 0.0) {
+				r_cons_printf ("%02.5lf B  ", row->bscore);
+			}
+			if (row->gscore > 0.0) {
+				r_cons_printf ("%02.5lf G  ", row->gscore);
+			}
+			r_cons_printf (" %s\n", row->item->name);
 		}
-		if (row->gscore > 0.0) {
-			r_cons_printf ("%02.5lf G  ", row->gscore);
-		}
-		r_cons_printf (" %s\n", row->item->name);
 	}
 }
 
@@ -838,7 +803,7 @@ static double get_zb_threshold(RCore *core) {
 	return thresh;
 }
 
-static bool bestmatch_fcn(RCore *core, const char *input) {
+static bool bestmatch_fcn(RCore *core, const char *input, bool json) {
 	r_return_val_if_fail (input && core, false);
 
 	char *argv = r_str_new (input);
@@ -888,14 +853,14 @@ static bool bestmatch_fcn(RCore *core, const char *input) {
 	r_sign_item_free (it);
 
 	if (list) {
-		print_possible_matches (list);
+		print_possible_matches (list, json, core);
 		r_list_free (list);
 		return true;
 	}
 	return false;
 }
 
-static bool bestmatch_sig(RCore *core, const char *input) {
+static bool bestmatch_sig(RCore *core, const char *input, bool json) {
 	r_return_val_if_fail (input && core, false);
 	int count = 5;
 	if (!R_STR_ISEMPTY (input)) {
@@ -936,7 +901,7 @@ static bool bestmatch_sig(RCore *core, const char *input) {
 		RList *list = r_sign_find_closest_sig (core->anal, item, count, th);
 		if (list) {
 			found = true;
-			print_possible_matches (list);
+			print_possible_matches (list, json, core);
 			r_list_free (list);
 		}
 		r_cons_break_pop ();
@@ -950,17 +915,24 @@ static bool bestmatch_sig(RCore *core, const char *input) {
 
 static bool bestmatch(void *data, const char *input) {
 	r_return_val_if_fail (data && input, false);
+	bool json = false;
 	RCore *core = (RCore *)data;
 	switch (input[0]) {
 	case 'r':
 		input++;
-		return bestmatch_fcn (core, input);
-		break;
+		if (*input == 'j') {
+			input++;
+			json = true;
+		}
+		return bestmatch_fcn (core, input, json);
+	case 'j':
+		json = true;
+		/* fallthrough */
 	case ' ':
 		input++;
+		/* fallthrough */
 	case '\x00':
-		return bestmatch_sig (core, input);
-		break;
+		return bestmatch_sig (core, input, json);
 	case '?':
 	default:
 		r_core_cmd_help (core, help_msg_zb);
@@ -1104,7 +1076,7 @@ static bool diff_zig(void *data, const char *input) {
 	}
 
 	if (strtok (NULL, " ")) {
-		eprintf ("too many arguments");
+		eprintf ("too many arguments\n");
 		free (argv);
 		return false;
 	}

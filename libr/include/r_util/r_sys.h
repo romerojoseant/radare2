@@ -32,8 +32,8 @@ typedef struct {
 R_API RSysInfo *r_sys_info(void);
 R_API void r_sys_info_free(RSysInfo *si);
 
-R_API int r_sys_sigaction(int *sig, void (*handler) (int));
-R_API int r_sys_signal(int sig, void (*handler) (int));
+R_API int r_sys_sigaction(int *sig, void(*handler)(int));
+R_API int r_sys_signal(int sig, void(*handler)(int));
 R_API void r_sys_env_init(void);
 R_API char **r_sys_get_environ(void);
 R_API void r_sys_set_environ(char **e);
@@ -57,7 +57,9 @@ R_API void r_sys_perror_str(const char *fun);
 #else
 #define r_sys_mkdir_failed() (errno != EEXIST)
 #endif
+R_API int r_sys_tem(const char *s);
 R_API const char *r_sys_prefix(const char *pfx);
+R_API bool r_sys_mktemp(const char *dir);
 R_API bool r_sys_mkdir(const char *dir);
 R_API bool r_sys_mkdirp(const char *dir);
 R_API int r_sys_sleep(int secs);
@@ -106,7 +108,7 @@ R_API bool r_sys_tts(const char *txt, bool bg);
 #if __WINDOWS__
 #  define r_sys_breakpoint() { __debugbreak  (); }
 #else
-#if __GNUC__
+#if __GNUC__ && !defined(__TINYC__)
 #  define r_sys_breakpoint() __builtin_trap()
 #elif __i386__ || __x86_64__
 #   define r_sys_breakpoint() __asm__ volatile ("int3");
@@ -120,6 +122,8 @@ R_API bool r_sys_tts(const char *txt, bool bg);
 #    define r_sys_breakpoint() __asm__ volatile ("svc $1");
 #  endif
 #elif __mips__
+#  define r_sys_breakpoint() __asm__ volatile ("break");
+#elif __loongarch__
 #  define r_sys_breakpoint() __asm__ volatile ("break");
 // #  define r_sys_breakpoint() __asm__ volatile ("teq $0, $0");
 #elif __EMSCRIPTEN__
@@ -135,7 +139,11 @@ R_API bool r_sys_tts(const char *txt, bool bg);
 /* syscmd */
 R_API char *r_syscmd_ls(const char *input, int w);
 R_API char *r_syscmd_cat(const char *file);
-R_API char *r_syscmd_mkdir(const char *dir);
+R_API bool r_syscmd_pushd(const char *dir);
+R_API bool r_syscmd_popd(void);
+R_API bool r_syscmd_popalld(void);
+R_API bool r_syscmd_mkdir(const char *dir);
+R_API char *r_syscmd_mktemp(const char *dir);
 R_API bool r_syscmd_mv(const char *input);
 R_API char *r_syscmd_uniq(const char *file);
 R_API char *r_syscmd_head(const char *file, int count);
@@ -143,7 +151,7 @@ R_API char *r_syscmd_tail(const char *file, int count);
 R_API char *r_syscmd_join(const char *file1, const char *file2);
 R_API char *r_syscmd_sort(const char *file);
 
-R_API ut8 *r_sys_unxz (const ut8 *data, size_t len, size_t *olen);
+R_API ut8 *r_sys_unxz(const ut8 *data, size_t len, size_t *olen);
 R_API bool r_w32_init(void);
 
 #ifdef __cplusplus

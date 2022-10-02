@@ -6,6 +6,9 @@ arm.v35:
 bins:
 	git clone --depth 1 https://github.com/radareorg/radare2-testbins bins
 
+evm:
+	${RUNTEST} db/extras/asm/evm
+
 fuzz/targets:
 	git clone --depth 1 https://github.com/radareorg/radare2-fuzztargets fuzz/targets
 
@@ -40,6 +43,9 @@ olly-extras: bins
 
 dwarf: bins
 	${RUNTEST} db/extras/asm/dwarf
+
+vc4: bins
+	${RUNTEST} db/extras/asm/vc4
 
 yara: bins
 	${RUNTEST} db/extras/cmd/yara

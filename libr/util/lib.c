@@ -1,4 +1,4 @@
-/* radare - LGPL - Copyright 2008-2021 - pancake */
+/* radare - LGPL - Copyright 2008-2022 - pancake */
 
 #include <r_util.h>
 #include <r_lib.h>
@@ -7,7 +7,7 @@ R_LIB_VERSION(r_lib);
 
 /* TODO: avoid globals */
 #define IFDBG if(__has_debug)
-static bool __has_debug = false;
+static R_TH_LOCAL bool __has_debug = false;
 
 /* XXX : this must be registered in runtime */
 static const char *r_lib_types[] = {
@@ -221,7 +221,7 @@ R_API int r_lib_close(RLib *lib, const char *file) {
 			}
 			free (p->file);
 			r_list_delete (lib->plugins, iter);
-			if (file != NULL) {
+			if (file) {
 				return ret;
 			}
 		}

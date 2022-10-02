@@ -1,3 +1,34 @@
+NAME=prev seek opcode mill bug
+FILE=bins/elf/runofthemill
+CMDS=<<EOF
+s 0x4117e4
+so+1
+s
+so-1
+s
+so-1
+s
+aa
+?e --
+s 0x4117e4
+so+1
+s
+so-1
+s
+so-1
+s
+EOF
+EXPECT=<<EOF
+0x4117ef
+0x4117e4
+0x4117dc
+--
+0x4117ef
+0x4117e4
+0x4117dc
+EOF
+RUN
+
 NAME=seek preludes
 FILE=bins/mach0/ls-osx-x86_64
 CMDS=<<EOF
@@ -359,19 +390,19 @@ EXPECT=<<EOF
 --- From 0x560e97 ---
 
 -- 1 --
-|           ; CODE XREF from fcn.00560e67 @ 0x560e80
+|           ; CODE XREF from fcn.00560e67 @ 0x560e80(x)
 |           0x00560e96      0f31           rdtsc
 0x560e96
-|           ; CODE XREF from fcn.00560e67 @ 0x560e80
+|           ; CODE XREF from fcn.00560e67 @ 0x560e80(x)
 |           0x00560e96      0f31           rdtsc
 
 -- 2 --
             0x00560e95  ~   ba0f31e914     mov edx, 0x14e9310f
-|           ; CODE XREF from fcn.00560e67 @ 0x560e80
+|           ; CODE XREF from fcn.00560e67 @ 0x560e80(x)
 |           0x00560e96      0f31           rdtsc
 0x560e95
             0x00560e95  ~   ba0f31e914     mov edx, 0x14e9310f
-|           ; CODE XREF from fcn.00560e67 @ 0x560e80
+|           ; CODE XREF from fcn.00560e67 @ 0x560e80(x)
 |           0x00560e96      0f31           rdtsc
 
 --- From 0x560e96 ---
@@ -412,5 +443,25 @@ sb
 EOF
 EXPECT=<<EOF
 0x543a0
+EOF
+RUN
+
+NAME=partial seek history issue
+FILE=-
+CMDS=<<EOF
+s
+s..33
+s..44
+s
+s-
+s
+s-
+s
+EOF
+EXPECT=<<EOF
+0x0
+0x44
+0x33
+0x0
 EOF
 RUN

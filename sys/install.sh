@@ -24,16 +24,15 @@ while : ; do
 	"--with-capstone4")
 		export USE_CS5=1
 		rm -rf shlr/capstone
-		shift
-		continue
 		;;
 	"--install")
 		export INSTALL_TARGET="install"
-		shift
-		continue
+		;;
+	"--without-pull")
+		export WITHOUT_PULL=1
 		;;
 	-*)
-		# penguin face just for flags
+		# just for the penguin face case
 		ARGS="${ARGS} $1"
 		;;
 	*)
@@ -57,22 +56,25 @@ export MAKE="$MAKE"
 
 [ -z "${INSTALL_TARGET}" ] && INSTALL_TARGET=symstall
 
-# find 
+# find
 cd "$(dirname $0)"/..
 pwd
 
 # update
-if [ "$1" != "--without-pull" ]; then
+if [ -z "$WITHOUT_PULL" ]; then
 	if [ -d .git ]; then
 		git branch | grep "^\* master" > /dev/null
 		if [ $? = 0 ]; then
 			echo "WARNING: Updating from remote repository"
-			git pull
+			# Attempt to update from an existing remote
+			UPSTREAM_REMOTE=$(git remote -v | grep 'radareorg/radare2\(\.git\)\? (fetch)' | cut -f1 | head -n1)
+			if [ -n "$UPSTREAM_REMOTE" ]; then
+				git pull "$UPSTREAM_REMOTE" master
+			else
+				git pull https://github.com/radareorg/radare2 master
+			fi
 		fi
 	fi
-else
-	export WITHOUT_PULL=1
-	shift
 fi
 
 umask 0002
@@ -112,7 +114,31 @@ else
 	fi
 fi
 
-./preconfigure
+NEED_CAPSTONE=1
+pkg-config --cflags capstone 2>&1 > /dev/null
+if [ $? = 0 ]; then
+	pkg-config --atleast-version=5.0.0 capstone 2>/dev/null
+	if [ $? = 0 ]; then
+		pkg-config --variable=archs capstone 2> /dev/null | grep -q riscv
+		if [ $? = 0 ]; then
+			export CFGARG="--with-syscapstone"
+			NEED_CAPSTONE=0
+			echo "Note: Using system-wide-capstone"
+		else
+			echo "Warning: Your system-wide capstone dont have enough archs"
+		fi
+	else
+		echo "Warning: Your system-wide capstone is too old for me"
+	fi
+else
+	echo "Warning: Cannot find system wide capstone"
+fi
+
+if [ "$NEED_CAPSTONE" = 1 ]; then
+	if [ ! -d shlr/capstone ]; then
+		./preconfigure
+	fi
+fi
 
 if [ "${M32}" = 1 ]; then
 	${SHELL} ./sys/build-m32.sh ${ARGS} || exit 1

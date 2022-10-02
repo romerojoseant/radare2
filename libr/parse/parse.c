@@ -1,7 +1,5 @@
-/* radare2 - LGPL - Copyright 2009-2021 - nibble, pancake, maijin */
+/* radare2 - LGPL - Copyright 2009-2022 - nibble, pancake, maijin */
 
-#include <stdio.h>
-#include <r_types.h>
 #include <r_parse.h>
 #include <config.h>
 
@@ -35,15 +33,15 @@ R_API RParse *r_parse_new(void) {
 }
 
 R_API void r_parse_free(RParse *p) {
-	r_list_free (p->parsers);
-	free (p);
+	if (p) {
+		r_list_free (p->parsers);
+		free (p);
+	}
 }
 
 R_API bool r_parse_add(RParse *p, RParsePlugin *foo) {
-	bool itsFine = true;
-	if (foo->init) {
-		itsFine = foo->init (p, p->user);
-	}
+	r_return_val_if_fail (p && foo, false);
+	bool itsFine = foo->init? foo->init (p, p->user): true;
 	if (itsFine) {
 		r_list_append (p->parsers, foo);
 	}
@@ -60,9 +58,16 @@ static char *predotname(const char *name) {
 }
 
 R_API bool r_parse_use(RParse *p, const char *name) {
+	r_return_val_if_fail (p && name, false);
+
+	// TODO: remove the alias workarounds because of missing pseudo plugins
+	// TODO: maybe we want to have a generic pseudo parser?
+	if (r_str_startswith (name, "s390.")) {
+		name = "x86.pseudo";
+	}
+
 	RListIter *iter;
 	RParsePlugin *h;
-	r_return_val_if_fail (p && name, false);
 	r_list_foreach (p->parsers, iter, h) {
 		if (!strcmp (h->name, name)) {
 			p->cur = h;
@@ -87,6 +92,7 @@ R_API bool r_parse_use(RParse *p, const char *name) {
 // this function is a bit confussing, assembles C code into wat?, whehres theh input and wheres the output
 // and its unused. so imho it sshould be DEPRECATED this conflicts with rasm.assemble imhoh
 R_API bool r_parse_assemble(RParse *p, char *data, char *str) {
+	r_return_val_if_fail (p && data && str, false);
 	char *in = strdup (str);
 	bool ret = false;
 	char *s, *o;
@@ -154,7 +160,8 @@ R_API char *r_parse_immtrim(char *opstr) {
 	return opstr;
 }
 
-R_API bool r_parse_subvar(RParse *p, RAnalFunction *f, ut64 addr, int oplen, char *data, char *str, int len) {
+R_API bool r_parse_subvar(RParse *p, R_NULLABLE RAnalFunction *f, ut64 addr, int oplen, char *data, char *str, int len) {
+	r_return_val_if_fail (p, false);
 	if (p->cur && p->cur->subvar) {
 		return p->cur->subvar (p, f, addr, oplen, data, str, len);
 	}
@@ -163,5 +170,6 @@ R_API bool r_parse_subvar(RParse *p, RAnalFunction *f, ut64 addr, int oplen, cha
 
 /* setters */
 R_API void r_parse_set_user_ptr(RParse *p, void *user) {
+	r_return_if_fail (p && user);
 	p->user = user;
 }

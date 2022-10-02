@@ -8,7 +8,7 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 	csh handle;
 	cs_insn* insn;
 	int mode, n, ret = -1;
-	mode = a->big_endian? CS_MODE_BIG_ENDIAN: CS_MODE_LITTLE_ENDIAN;
+	mode = a->config->big_endian? CS_MODE_BIG_ENDIAN: CS_MODE_LITTLE_ENDIAN;
 	memset (op, 0, sizeof (RAsmOp));
 	op->size = 4;
 	ret = cs_open (CS_ARCH_XCORE, mode, &handle);
@@ -28,7 +28,8 @@ static int disassemble(RAsm *a, RAsmOp *op, const ut8 *buf, int len) {
 		goto beach;
 	}
 	op->size = insn->size;
-	r_asm_op_set_asm (op, sdb_fmt ("%s%s%s",
+	r_strf_buffer (256);
+	r_asm_op_set_asm (op, r_strf ("%s%s%s",
 		insn->mnemonic, insn->op_str[0]? " ": "",
 		insn->op_str));
 	// TODO: remove the '$'<registername> in the string
